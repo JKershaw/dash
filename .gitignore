@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Environment variables and user config
+.env
+dash-user-config.json
+
+# Generated analysis output (should never be published)
+output/
+.claude/
+test-output/
+test-output-integration/
+test-output-production/
+test-logs/
+transcripts/
+logs/
+parsed-sessions/
+analysis-report-*.md
+reports/
+
+# Log files
+file-access.log
+*.log
+
+# Test results and screenshots
+test-results/
+tests/screenshots/
+tests/visual/screenshots/
+playwright-report/
+
+# Built CSS (generated from source)
+public/css/tailwind-built.css
+
+# Temporary files
+.DS_Store
+*.tmp
+*.temp
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git hooks
+.husky/
+
+# Electron build outputs
+*.exe
+*.AppImage
+*.deb
+*.rpm
+*.snap
+
+# Electron cache and temp files
+.electron/
+electron-cache/

@@ -1,0 +1,387 @@
+<%- include('partials/header') %>
+
+<!-- Analysis History Toggle Styles -->
+<style>
+  .history-overflow { display: none; }
+  .history-expanded .history-overflow { display: table-row; }
+  
+  /* Mobile-friendly table styling */
+  @media (max-width: 768px) {
+    #analysisHistory .table th:nth-child(2), /* Time column */
+    #analysisHistory .table td:nth-child(2) {
+      display: none;
+    }
+    #analysisHistory .table th, 
+    #analysisHistory .table td {
+      padding: 0.5rem 0.25rem;
+      font-size: 0.875rem;
+    }
+  }
+</style>
+
+<!-- Main Content -->
+<div class="container mt-4">
+  
+  <!-- Status Messages Area -->
+  <div id="statusMessages"></div>
+
+  <!-- API Key Warning -->
+  <div id="apiKeyWarning" class="alert alert-danger alert-dismissible fade show d-none" role="alert">
+    <div class="d-flex align-items-start">
+      <i class="bi bi-exclamation-triangle-fill me-2 mt-1"></i>
+      <div class="flex-grow-1">
+        <strong>API Key Not Configured</strong> - AI features unavailable.
+        <div class="mt-2">
+          <small class="d-block mb-3">Configure your Anthropic API key to enable enhanced analysis features.</small>
+          <a href="/settings" class="btn btn-primary btn-sm">
+            <i class="bi bi-gear-fill me-1"></i>
+            Configure in Settings
+          </a>
+        </div>
+      </div>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  </div>
+
+  <!-- Logs Directory Warning -->
+  <div id="logsDirectoryAlert" class="alert alert-warning alert-dismissible fade show d-none" role="alert">
+    <div class="d-flex align-items-start">
+      <i class="bi bi-folder-x me-2 mt-1"></i>
+      <div class="flex-grow-1">
+        <strong>No Claude Code Logs Found</strong>
+        <div class="mt-2">
+          <small class="d-block mb-3">
+            Looking in: <code id="logsDirectoryPath"></code><br>
+            Set <code>CLAUDE_LOGS_DIR</code> environment variable if your logs are elsewhere.
+          </small>
+          
+          <!-- Claude Help Prompt -->
+          <div class="border rounded p-2 bg-light mb-2">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <small class="fw-bold text-muted">Ask Claude to help find your logs:</small>
+              <button class="btn btn-outline-secondary btn-sm" type="button" id="copyClaudePromptBtn">
+                <i class="bi bi-clipboard me-1"></i>Copy Prompt
+              </button>
+            </div>
+            <div class="bg-white border rounded p-2">
+              <small class="font-monospace text-muted" id="claudePromptText" style="font-size: 0.75rem; line-height: 1.3;">
+                I'm trying to use the @jkershaw/dash (npm) to analyze my Claude Code conversation logs, but it can't find the log files. Please help me locate my Claude Code logs:
+
+1. First, detect what operating system I'm using based on this conversation
+2. Tell me the default Claude Code logs directory for my OS  
+3. Give me step-by-step instructions to check if the directory exists and contains .jsonl files
+4. If the default location is empty or missing, help me search for alternative locations where Claude Code might store logs
+5. Show me how to set the CLAUDE_LOGS_DIR environment variable to point to the correct directory
+6. If I can't find any logs, explain how to enable Claude Code logging
+
+I need the exact file path to configure this analysis tool. Please give me specific commands I can copy and paste.
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  </div>
+
+  <!-- Page Header -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <h1 class="display-6">
+        <i class="bi bi-speedometer2 text-primary me-2"></i>
+        Dashboard
+      </h1>
+      <p class="lead text-muted">Overview of your Claude Code analysis and session patterns</p>
+    </div>
+  </div>
+
+  <!-- Getting Started -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="alert alert-info">
+        First click "Load Sessions" to import your Claude Code logs, optionally filter by project, then "Run Analysis" to get insights and recommendations. Loading sessions and running analysis can take a few minutes.
+      </div>
+    </div>
+  </div>
+
+  <!-- Action Buttons Section -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <h5 class="mb-3">
+        <i class="bi bi-play-circle me-2"></i>
+        Quick Actions
+      </h5>
+      <div class="card">
+        <div class="card-body">
+          
+          <div class="d-grid gap-2 d-sm-flex">
+            <button id="loadSessionsBtn" class="btn btn-outline-primary">
+              <i class="bi bi-folder2-open me-2"></i>
+              Load Sessions
+            </button>
+            
+            <button id="filterToggleBtn" class="btn btn-outline-primary" title="Filter by Project">
+              <i class="bi bi-funnel"></i>
+            </button>
+            
+            <button id="runAnalysisBtn" class="btn btn-primary">
+              <i class="bi bi-gear-wide me-2"></i>
+              Run Analysis
+            </button>
+            
+          </div>
+
+          <!-- Collapsible Project Filter Section -->
+          <div id="filterSection" class="mt-3 d-none">
+            <div class="row">
+              <div class="col-md-6">
+                <label for="projectFilter" class="form-label">Filter by Project</label>
+                <select id="projectFilter" class="form-select">
+                  <option value="">All Projects (Comprehensive Analysis)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Progress Bar -->
+          <div id="progressSection" class="mt-3 d-none">
+            <div class="d-flex justify-content-between align-items-center">
+              <small id="progressLabel" class="text-muted">Processing...</small>
+              <small id="progressPercent" class="text-muted">0%</small>
+            </div>
+            
+            <div class="progress mt-2">
+              <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+            </div>
+            
+            <!-- Enhanced Progress Display -->
+            <div id="enhancedProgress" class="mt-3">
+              <!-- Pipeline steps -->
+              <div id="progressSteps" class="d-flex justify-content-between mb-2"></div>
+            </div>
+            
+            <!-- View Results Button -->
+            <div id="viewResultsContainer" class="d-none mt-3 text-center">
+              <button id="viewResultsBtn" class="btn btn-success btn-lg">
+                <i class="bi bi-bar-chart me-2"></i>
+                View Results
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Metrics Cards Section -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <h5 class="mb-3">
+        <i class="bi bi-bar-chart me-2"></i>
+        Key Metrics
+      </h5>
+    </div>
+    
+    <!-- Total Sessions Card -->
+    <div class="col-6 col-md-3 mb-3">
+      <div class="card metrics-card text-center">
+        <div class="card-body">
+          <i class="bi bi-chat-dots text-primary fs-1"></i>
+          <h3 id="totalSessions" class="mt-2">-</h3>
+          <p class="text-muted mb-0 small">Sessions</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Total Projects Card -->
+    <div class="col-6 col-md-3 mb-3">
+      <div class="card metrics-card text-center">
+        <div class="card-body">
+          <i class="bi bi-folder text-success fs-1"></i>
+          <h3 id="totalProjects" class="mt-2">-</h3>
+          <p class="text-muted mb-0 small">Projects</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Total Duration Card -->
+    <div class="col-6 col-md-3 mb-3">
+      <div class="card metrics-card text-center">
+        <div class="card-body">
+          <i class="bi bi-clock text-warning fs-1"></i>
+          <h3 id="avgDuration" class="mt-2">-</h3>
+          <p class="text-muted mb-0 small">Duration</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Total Messages Card -->
+    <div class="col-6 col-md-3 mb-3">
+      <div class="card metrics-card text-center">
+        <div class="card-body">
+          <i class="bi bi-chat-dots text-info fs-1"></i>
+          <h3 id="totalMessages" class="mt-2">-</h3>
+          <p class="text-muted mb-0 small">Messages</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Session Analysis Charts -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <h5 class="mb-3">
+        <i class="bi bi-graph-up me-2"></i>
+        Session Analysis Charts
+      </h5>
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <!-- Chart View Toggle -->
+            <div class="btn-group btn-group-sm" role="group" aria-label="Chart view toggle">
+              <input type="radio" class="btn-check" name="chartView" id="chartViewBar" value="charts" checked>
+              <label class="btn btn-outline-primary" for="chartViewBar" title="Bar Chart View">
+                <i class="bi bi-bar-chart"></i>
+              </label>
+              
+              <input type="radio" class="btn-check" name="chartView" id="chartViewFlow" value="flow">
+              <label class="btn btn-outline-primary" for="chartViewFlow" title="Flow Visualization">
+                <i class="bi bi-water"></i>
+              </label>
+            </div>
+          </div>
+          
+          <!-- Bar Chart Container -->
+          <div id="chartContainer" class="chart-container">
+            <div class="d-flex justify-content-center align-items-center h-100">
+              <div class="text-center">
+                <div class="spinner-border text-primary mb-2" role="status"></div>
+                <p class="text-muted">Loading chart data...</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Flow Chart Container -->
+          <div id="flowContainer" class="chart-container d-none">
+            <!-- Default Loading State -->
+            <div id="flowChartLoading" class="d-flex justify-content-center align-items-center h-100">
+              <div class="text-center">
+                <div class="spinner-border text-primary mb-2" role="status"></div>
+                <p class="text-muted">Loading flow visualization...</p>
+              </div>
+            </div>
+            
+            <!-- Error State -->
+            <div id="flowChartError" class="alert alert-warning d-none" role="alert">
+              <i class="bi bi-exclamation-triangle me-2"></i>
+              <span id="flowChartErrorMessage">Failed to load session flow data</span>
+            </div>
+            
+            <!-- Flow Chart -->
+            <div id="sessionFlowChart" class="d-none"></div>
+            
+            <!-- Flow Chart Controls -->
+            <div class="mt-3 d-flex justify-content-between align-items-center">
+              <div class="flow-chart-controls">
+                <button class="btn btn-sm btn-outline-secondary" onclick="resetFlowZoom()">
+                  <i class="bi bi-arrow-clockwise me-1"></i>Reset View
+                </button>
+                <small class="text-muted ms-2">Drag to pan • Scroll to zoom</small>
+              </div>
+            </div>
+            
+            <!-- Artist's Statement (always visible when on flow tab) -->
+            <div class="mt-2">
+              <small class="text-muted">
+                Each line represents one coding session starting from a common baseline. 
+              </small>
+            </div>
+          </div>
+          
+          <!-- Chart Controls (below charts) -->
+          <div class="row mt-3">
+            <div class="col-md-6">
+              <label class="form-label">Data View:</label>
+              <div class="btn-group w-100" role="group">
+                <input type="radio" class="btn-check" name="chartData" id="showMessages" value="messages" checked>
+                <label class="btn btn-outline-primary" for="showMessages">
+                  <i class="bi bi-chat-dots me-1"></i>Messages
+                </label>
+                
+                <input type="radio" class="btn-check" name="chartData" id="showDuration" value="duration">
+                <label class="btn btn-outline-primary" for="showDuration">
+                  <i class="bi bi-clock me-1"></i>Duration
+                </label>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">X-Axis:</label>
+              <div class="btn-group w-100" role="group">
+                <input type="radio" class="btn-check" name="xAxis" id="timeline" value="timeline" checked>
+                <label class="btn btn-outline-primary" for="timeline">Timeline</label>
+                
+                <input type="radio" class="btn-check" name="xAxis" id="sessionNumber" value="sessions">
+                <label class="btn btn-outline-primary" for="sessionNumber">Session #</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Analysis History -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <h5 class="mb-3">
+        <i class="bi bi-clock-history me-2"></i>
+        Analysis History
+      </h5>
+      <div class="card">
+        <div class="card-body">
+          <div id="analysisHistory">
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Time</th>
+                  <th>Sessions</th>
+                  <th>Project</th>
+                  <th>Duration</th>
+                  <th>LLM Calls</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colspan="8" class="text-center text-muted">Loading history...</td>
+                </tr>
+                </tbody>
+              </table>
+            </div>
+            
+            <!-- Toggle button for expanding history -->
+            <div id="historyToggle" class="text-center mt-3 d-none">
+              <button id="historyToggleBtn" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-chevron-down me-1"></i>
+                <span>Show All (<span id="hiddenCount">0</span> more)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+<!-- Charts Library (must load before dashboard.js) -->
+<script src="/public/js/charts.js"></script>
+
+<!-- Dashboard JavaScript -->
+<script type="module" src="/public/js/dashboard.js"></script>
+
+<%- include('partials/footer') %>

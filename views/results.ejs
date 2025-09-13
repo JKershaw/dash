@@ -1,0 +1,194 @@
+<%- include('partials/header') %>
+
+<!-- Main Content -->
+<div class="container mt-4">
+  
+  <!-- Status Messages Area -->
+  <div id="statusMessages"></div>
+
+  <!-- Page Header -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <h1 class="display-6">
+        <i class="bi bi-bar-chart text-primary me-2"></i>
+        Analysis Results
+        <% if (locals.runId) { %>
+          <small class="text-muted fs-6">(Historical Run: <%= runId.substring(0, 8) %>...)</small>
+        <% } %>
+      </h1>
+      <p class="lead text-muted">
+        <% if (locals.runId) { %>
+          Historical analysis results from a previous run
+        <% } else { %>
+          Comprehensive analysis of your Claude Code sessions and patterns
+        <% } %>
+      </p>
+      
+      <% if (locals.runId) { %>
+        <!-- Historical Run Navigation -->
+        <div class="alert alert-info d-flex justify-content-between align-items-center">
+          <div>
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>Viewing Historical Analysis</strong> - Run ID: <code><%= runId %></code>
+          </div>
+          <a href="/results" class="btn btn-primary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Back to Latest Results
+          </a>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+
+
+  <!-- Summary Reports Tabbed Section -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <h5 class="mb-3">
+        <i class="bi bi-file-text me-2"></i>
+        Analysis Reports
+      </h5>
+      <div class="card">
+        <div class="card-body">
+          
+          <!-- Tab Navigation -->
+          <ul class="nav nav-tabs mb-3" id="summaryTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="narrative-tab" data-bs-toggle="tab" data-bs-target="#narrative-content" type="button" role="tab">
+                <i class="bi bi-journal-text me-1"></i>Narrative Summary
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="chat-tab" data-bs-toggle="tab" data-bs-target="#chat-content" type="button" role="tab">
+                <i class="bi bi-chat-dots me-1"></i>Chat
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="executive-tab" data-bs-toggle="tab" data-bs-target="#executive-content" type="button" role="tab">
+                <i class="bi bi-file-text me-1"></i>Executive Summary
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="recommendations-tab" data-bs-toggle="tab" data-bs-target="#recommendations-content" type="button" role="tab">
+                <i class="bi bi-lightbulb me-1"></i>Recommendations
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="ai-insights-tab" data-bs-toggle="tab" data-bs-target="#ai-insights-content" type="button" role="tab">
+                <i class="bi bi-cpu me-1"></i>AI Insights
+              </button>
+            </li>
+          </ul>
+
+          <!-- Tab Content -->
+          <div class="tab-content" id="summaryTabContent">
+            <!-- Narrative Summary Tab -->
+            <div class="tab-pane fade show active" id="narrative-content" role="tabpanel">
+              <div id="narrativeSummary">
+                <div class="d-flex justify-content-center py-4">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading narrative summary...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Executive Summary Tab -->
+            <div class="tab-pane fade" id="executive-content" role="tabpanel">
+              <div id="executiveSummary">
+                <div class="d-flex justify-content-center py-4">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading executive summary...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+
+            <!-- Recommendations Tab -->
+            <div class="tab-pane fade" id="recommendations-content" role="tabpanel">
+              <div id="recommendationsReport">
+                <div class="d-flex justify-content-center py-4">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading recommendations report...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- AI Insights Tab -->
+            <div class="tab-pane fade" id="ai-insights-content" role="tabpanel">
+              <div id="enhancedAnalysis">
+                <div class="alert alert-info">
+                  <i class="bi bi-info-circle me-2"></i>
+                  Enhanced AI analysis provides deeper insights when available. 
+                  Run analysis with AI features enabled to see detailed patterns and suggestions.
+                </div>
+              </div>
+            </div>
+
+            <!-- Chat Tab -->
+            <div class="tab-pane fade" id="chat-content" role="tabpanel">
+              <div id="chatContainer" class="border rounded p-3" style="height: 500px; display: flex; flex-direction: column;">
+                <!-- Chat Messages Area -->
+                <div id="chatMessages" class="flex-grow-1 mb-3 p-2 bg-light rounded overflow-auto" style="max-height: 400px;">
+                  <!-- Welcome message will be added by JavaScript -->
+                </div>
+                
+                <!-- Chat Input Form -->
+                <form id="chatInputForm" class="d-flex gap-2">
+                  <input 
+                    type="text" 
+                    id="chatInput" 
+                    class="form-control" 
+                    placeholder="Ask me about your Claude Code sessions..." 
+                    maxlength="500"
+                  >
+                  <button type="submit" id="sendChatBtn" class="btn btn-primary">
+                    <i class="bi bi-send me-1"></i>Send
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Analysis Metadata Overview -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <h5 class="mb-3">
+        <i class="bi bi-info-circle me-2"></i>
+        Analysis Run Information
+      </h5>
+      <div class="card">
+        <div class="card-body" id="analysisMetadata">
+          <div class="d-flex justify-content-center py-2">
+            <div class="text-center text-muted">
+              <div class="spinner-border spinner-border-sm me-2"></div>
+              Loading analysis information...
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+</div>
+
+<!-- Session Flow Visualization -->
+<!-- Session Flow Chart logic now handled in /public/js/charts.js and /public/js/results.js -->
+
+<!-- Pass runId to JavaScript -->
+<script>
+  <% if (locals.runId) { %>
+    window.CURRENT_RUN_ID = '<%= runId %>';
+  <% } %>
+</script>
+
+<!-- Results JavaScript -->
+<script src="/public/js/results.js"></script>
+<%- include('partials/footer') %>

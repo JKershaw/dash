@@ -1,0 +1,100 @@
+{
+  "name": "@jkershaw/dash",
+  "version": "1.3.0",
+  "description": "Agent Dashboard - Analyzes Claude Code sessions to provide insights and recommendations.",
+  "main": "src/electron/main.js",
+  "type": "module",
+  "bin": {
+    "dash": "./bin/cli.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jkershaw/dash.git"
+  },
+  "homepage": "https://github.com/jkershaw/dash#readme",
+  "bugs": {
+    "url": "https://github.com/jkershaw/dash/issues"
+  },
+  "scripts": {
+    "start": "node src/presentation/entry-points/server.js",
+    "sessions:load": "node src/presentation/entry-points/load-sessions.js",
+    "a": "npm run analysis",
+    "analysis": "node src/presentation/entry-points/main.js",
+    "build:css": "tailwindcss -i ./public/css/tailwind.css -o ./public/css/tailwind-built.css",
+    "build:css:watch": "tailwindcss -i ./public/css/tailwind.css -o ./public/css/tailwind-built.css --watch",
+    "dev": "concurrently \"npm run build:css:watch\" \"npm start\"",
+    "test": "npm run lint && npm run test:unit && npm run test:api",
+    "test:single": "NODE_ENV=test node --test",
+    "test:unit": "NODE_ENV=test CLAUDE_LOGS_DIR=./tests/fixtures/logs CLAUDE_TEST_ISOLATION=true node --test --test-concurrency=1 'tests/unit/*.test.js'",
+    "test:api": "NODE_ENV=test CLAUDE_LOGS_DIR=./tests/fixtures/logs CLAUDE_TEST_ISOLATION=true node --test --test-concurrency=1 'tests/api/*.test.js'",
+    "test:e2e": "playwright test",
+    "test:e2e:prod": "NODE_ENV=test playwright test tests/e2e/production-workflow.spec.js",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:all": "npm run test:unit && npm run test:api && npm run test:e2e",
+    "test:ai": "node --test 'tests/ai/*.test.js'",
+    "test:consistency": "npm run test:integration -- tests/integration/data-consistency.test.js",
+    "lint": "eslint src tests",
+    "lint:fix": "eslint src tests --fix",
+    "format": "prettier --write src tests *.js *.json *.md",
+    "format:check": "prettier --check src tests *.js *.json *.md",
+    "check": "npm run lint && npm run format:check && npm run test",
+    "fix": "npm run lint:fix && npm run format",
+    "test:quick": "npm run test:unit && npm run test:api",
+    "prepare": "husky",
+    "electron": "electron .",
+    "electron:dev": "NODE_ENV=development electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "dist": "npm run build -- --publish=never",
+    "dist:all": "npm run build -- --win --mac --linux --publish=never",
+    "pack": "electron-builder --dir",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "code-analysis",
+    "logs",
+    "ai-improvement",
+    "agent-dashboard",
+    "developer-tools"
+  ],
+  "author": "John Kershaw",
+  "license": "All Rights Reserved",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.60.0",
+    "dotenv": "^17.2.1",
+    "ejs": "^3.1.10",
+    "express": "^4.21.2",
+    "lodash-es": "^4.17.21",
+    "node-fetch": "^3.3.2",
+    "supertest": "^7.1.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.42.1",
+    "@tailwindcss/typography": "^0.5.10",
+    "autoprefixer": "^10.4.16",
+    "concurrently": "^9.2.1",
+    "electron": "^38.1.0",
+    "electron-builder": "^26.0.12",
+    "eslint": "^9.34.0",
+    "husky": "^9.1.7",
+    "jsdom": "^26.1.0",
+    "lint-staged": "^16.1.5",
+    "prettier": "^3.6.2",
+    "tailwindcss": "^3.4.0"
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  }
+}

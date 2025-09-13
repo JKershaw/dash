@@ -1,0 +1,725 @@
+<%- include('partials/header') %>
+
+<style>
+.ai-review-content {
+  line-height: 1.6;
+  color: #333;
+}
+
+.ai-review-content h5 {
+  color: #2c5aa0;
+  border-bottom: 2px solid #e9ecef;
+  padding-bottom: 0.3rem;
+}
+
+.ai-review-content p {
+  margin-bottom: 1rem;
+}
+
+.ai-review-content ul {
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+}
+
+.ai-review-content li {
+  margin-bottom: 0.3rem;
+}
+
+.ai-review-content strong {
+  color: #1a1a1a;
+}
+</style>
+
+<!-- Main Content -->
+<div class="container mt-4">
+  
+  <!-- Status Messages Area -->
+  <div id="statusMessages"></div>
+
+  <!-- Page Header -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <h1 class="display-6">
+        <i class="bi bi-bug text-warning me-2"></i>
+        Session Analysis Debug
+      </h1>
+      <p class="lead text-muted">Analyze individual sessions to see how pattern detection and scoring works</p>
+    </div>
+  </div>
+
+  <!-- Session Selection -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <h5 class="mb-3">
+        <i class="bi bi-search me-2"></i>
+        Select Session to Debug
+      </h5>
+      <div class="card">
+        <div class="card-body">
+          
+          <div class="row">
+            <div class="col-md-8 mb-3">
+              <label for="sessionSelect" class="form-label">Choose a session:</label>
+              <select class="form-select" id="sessionSelect">
+                <option value="">Loading sessions...</option>
+              </select>
+              <div class="form-text">Sessions with more tool operations provide richer debug information</div>
+            </div>
+            <div class="col-md-4 mb-3 d-flex align-items-end">
+              <button id="analyzeBtn" class="btn btn-primary" disabled>
+                <i class="bi bi-play-circle me-1"></i>
+                Analyze Session
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Analysis Results -->
+  <div id="analysisResults" style="display: none;">
+    
+    <!-- Session Overview -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">
+              <i class="bi bi-info-circle me-2"></i>
+              Session Overview
+            </h5>
+          </div>
+          <div class="card-body">
+            <div id="sessionOverview" class="row">
+              <!-- Will be populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pattern Detection Results -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">
+              <i class="bi bi-search me-2"></i>
+              Pattern Detection Results
+              <span id="patternsFoundBadge" class="badge bg-secondary ms-2">0 patterns</span>
+            </h5>
+          </div>
+          <div class="card-body">
+            <div id="patternResults">
+              <!-- Will be populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Struggle Classification -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">
+              <i class="bi bi-exclamation-triangle me-2"></i>
+              Struggle Classification
+              <span id="strugglesFoundBadge" class="badge bg-secondary ms-2">0 types</span>
+            </h5>
+          </div>
+          <div class="card-body">
+            <div id="struggleClassification">
+              <!-- Will be populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Struggle Trend Analysis -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">
+              <i class="bi bi-graph-up me-2"></i>
+              Struggle Trend Analysis
+            </h5>
+          </div>
+          <div class="card-body">
+            <div id="struggleTrend">
+              <!-- Will be populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Generated Recommendations -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">
+              <i class="bi bi-lightbulb me-2"></i>
+              Generated Recommendations
+              <span id="recommendationsBadge" class="badge bg-secondary ms-2">0 recommendations</span>
+            </h5>
+          </div>
+          <div class="card-body">
+            <div id="recommendations">
+              <!-- Will be populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Review Results -->
+    <div id="aiReviewSection" class="row mb-4" style="display: none;">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+              <i class="bi bi-robot me-2"></i>
+              AI Pattern Detection Review
+            </h5>
+            <button id="copyReviewBtn" class="btn btn-outline-secondary btn-sm" style="display: none;">
+              <i class="bi bi-clipboard me-1"></i>
+              Copy Review
+            </button>
+          </div>
+          <div class="card-body">
+            <div id="aiReviewResults">
+              <!-- Will be populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Processing Details -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+              <i class="bi bi-cpu me-2"></i>
+              Processing Details
+            </h5>
+            <button id="aiReviewBtn" class="btn btn-outline-secondary btn-sm" style="display: none;">
+              <i class="bi bi-robot me-1"></i>
+              Get AI Review
+            </button>
+          </div>
+          <div class="card-body">
+            <div id="processingDetails">
+              <!-- Will be populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-body text-center p-4">
+        <div class="spinner-border text-primary mb-3" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <h5>Analyzing Session...</h5>
+        <p class="mb-0">Running pattern detection and analysis</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Debug page JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+  const sessionSelect = document.getElementById('sessionSelect');
+  const analyzeBtn = document.getElementById('analyzeBtn');
+  const analysisResults = document.getElementById('analysisResults');
+  const aiReviewBtn = document.getElementById('aiReviewBtn');
+  const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+
+  let availableSessions = [];
+  let currentSessionId = null;
+
+  // Load available sessions on page load
+  loadDebugSessions();
+
+  async function loadDebugSessions() {
+    try {
+      const response = await fetch('/api/debug/sessions');
+      const data = await response.json();
+      
+      availableSessions = data.sessions;
+      
+      // Populate session dropdown
+      sessionSelect.innerHTML = '<option value="">Select a session...</option>';
+      
+      availableSessions.forEach(session => {
+        const option = document.createElement('option');
+        option.value = session.sessionId;
+        
+        // Create descriptive label
+        const suitability = [];
+        if (session.suitable.forPatternDetection) suitability.push('Pattern Detection');
+        if (session.suitable.forTrendAnalysis) suitability.push('Trend Analysis');
+        if (session.suitable.forErrorAnalysis) suitability.push('Error Analysis');
+        
+        const suitabilityText = suitability.length > 0 ? ` (${suitability.join(', ')})` : '';
+        const struggleIndicator = session.hasStruggle ? ' ⚠️' : '';
+        
+        option.textContent = `${session.projectName} / ${session.sessionId} - ${Math.floor(session.duration/60)}min, ${session.toolCount} tools${suitabilityText}${struggleIndicator}`;
+        
+        sessionSelect.appendChild(option);
+      });
+      
+      // Check if there's a pre-selected session from URL
+      const urlSessionId = '<%= selectedSessionId %>';
+      if (urlSessionId && urlSessionId !== 'null') {
+        sessionSelect.value = urlSessionId;
+        currentSessionId = urlSessionId;
+        analyzeBtn.disabled = false;
+        // Auto-trigger analysis
+        analyzeBtn.click();
+      }
+      
+      // Enable analyze button when session is selected
+      sessionSelect.addEventListener('change', function() {
+        analyzeBtn.disabled = !this.value;
+        // Update URL when session is selected
+        if (this.value) {
+          window.history.pushState({}, '', `/debug/${this.value}`);
+        } else {
+          window.history.pushState({}, '', '/debug');
+        }
+      });
+      
+    } catch (error) {
+      console.error('Failed to load debug sessions:', error);
+      showError('Failed to load available sessions');
+    }
+  }
+
+  // Analyze selected session
+  analyzeBtn.addEventListener('click', async function() {
+    const selectedSessionId = sessionSelect.value;
+    if (!selectedSessionId) return;
+    
+    currentSessionId = selectedSessionId;
+    loadingModal.show();
+    
+    try {
+      const response = await fetch(`/api/debug/session/${selectedSessionId}`);
+      const debugData = await response.json();
+      
+      displayAnalysisResults(debugData);
+      analysisResults.style.display = 'block';
+      aiReviewBtn.style.display = 'block'; // Show AI review button
+      
+      // Scroll to results
+      analysisResults.scrollIntoView({ behavior: 'smooth' });
+      
+    } catch (error) {
+      console.error('Failed to analyze session:', error);
+      showError('Failed to analyze session: ' + error.message);
+    } finally {
+      loadingModal.hide();
+    }
+  });
+
+  // AI Review button
+  aiReviewBtn.addEventListener('click', async function() {
+    if (!currentSessionId) return;
+    
+    console.log(`🤖 Requesting AI review for session ${currentSessionId}...`);
+    aiReviewBtn.disabled = true;
+    aiReviewBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Reviewing...';
+    
+    try {
+      const response = await fetch(`/api/debug/session/${currentSessionId}/ai-review`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const reviewData = await response.json();
+      
+      if (reviewData.reviewAvailable) {
+        // Display AI review on the page
+        displayAiReview(reviewData);
+        
+        // Also log to console for developers
+        console.log(`✅ AI Review for ${currentSessionId}:`);
+        console.log('='.repeat(60));
+        console.log(reviewData.review);
+        console.log('='.repeat(60));
+        console.log(`Processing time: ${reviewData.metadata.processingTime}ms`);
+        console.log(`Analyzed complete conversation: ${reviewData.metadata.conversationLength} messages`);
+        console.log(`Analysis depth: ${reviewData.metadata.analysisDepth} (${reviewData.metadata.maxTokensUsed} max tokens)`);
+        
+        showSuccess(`AI review completed! Analysis displayed below with detailed feedback on pattern detection.`);
+      } else {
+        // Display error state on page
+        displayAiReviewError(reviewData);
+        
+        console.log(`⚠️  AI review not available for ${currentSessionId}:`);
+        console.log(reviewData.error || 'Unknown error');
+        if (reviewData.fallbackMessage) {
+          console.log(`Fallback: ${reviewData.fallbackMessage}`);
+        }
+        
+        showError(`AI review unavailable: ${reviewData.error || 'LLM service not accessible'}`);
+      }
+      
+    } catch (error) {
+      console.error('Failed to get AI review:', error);
+      showError('Failed to get AI review: ' + error.message);
+    } finally {
+      aiReviewBtn.disabled = false;
+      aiReviewBtn.innerHTML = '<i class="bi bi-robot me-1"></i>Get AI Review';
+    }
+  });
+
+  // Copy Review button
+  document.getElementById('copyReviewBtn').addEventListener('click', async function() {
+    if (!window.rawReviewText) {
+      showError('No review text available to copy');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(window.rawReviewText);
+      
+      // Update button temporarily to show success
+      const btn = this;
+      const originalHTML = btn.innerHTML;
+      btn.innerHTML = '<i class="bi bi-check me-1"></i>Copied!';
+      btn.classList.remove('btn-outline-secondary');
+      btn.classList.add('btn-success');
+      
+      // Reset after 2 seconds
+      setTimeout(() => {
+        btn.innerHTML = originalHTML;
+        btn.classList.remove('btn-success');
+        btn.classList.add('btn-outline-secondary');
+      }, 2000);
+      
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
+      showError('Failed to copy to clipboard');
+    }
+  });
+
+  function displayAnalysisResults(data) {
+    displaySessionOverview(data);
+    displayPatternResults(data.patternResults);
+    displayStruggleClassification(data.struggleClassification);
+    displayStruggleTrend(data.struggleTrend);
+    displayRecommendations(data.recommendations);
+    displayProcessingDetails(data.metadata);
+  }
+
+  function displaySessionOverview(data) {
+    const overview = document.getElementById('sessionOverview');
+    const metrics = data.sessionMetrics;
+    
+    overview.innerHTML = `
+      <div class="col-md-4">
+        <h6>Basic Info</h6>
+        <ul class="list-unstyled">
+          <li><strong>Session ID:</strong> ${metrics.sessionId}</li>
+          <li><strong>Project:</strong> ${metrics.projectName}</li>
+          <li><strong>Duration:</strong> ${metrics.duration.formatted}</li>
+          <li><strong>Active Duration:</strong> ${(metrics.duration.active/60).toFixed(1)} minutes</li>
+        </ul>
+      </div>
+      <div class="col-md-4">
+        <h6>Tool Operations</h6>
+        <ul class="list-unstyled">
+          <li><strong>Total:</strong> ${metrics.toolOperations.total}</li>
+          <li><strong>Successful:</strong> <span class="text-success">${metrics.toolOperations.successful}</span></li>
+          <li><strong>Errors:</strong> <span class="text-danger">${metrics.toolOperations.errors}</span></li>
+          <li><strong>Tools Used:</strong> ${metrics.toolOperations.tools.join(', ')}</li>
+        </ul>
+      </div>
+      <div class="col-md-4">
+        <h6>Conversation</h6>
+        <ul class="list-unstyled">
+          <li><strong>Total Entries:</strong> ${metrics.conversation.totalEntries}</li>
+          <li><strong>Human Messages:</strong> ${metrics.conversation.humanMessages}</li>
+          <li><strong>Assistant Messages:</strong> ${metrics.conversation.assistantMessages}</li>
+          <li><strong>Has Struggle:</strong> ${metrics.struggle.hasStruggle ? '<span class="text-warning">Yes</span>' : '<span class="text-success">No</span>'}</li>
+        </ul>
+      </div>
+    `;
+  }
+
+  function displayPatternResults(patterns) {
+    const container = document.getElementById('patternResults');
+    const badge = document.getElementById('patternsFoundBadge');
+    
+    const detectedPatterns = Object.entries(patterns).filter(([_, data]) => data.detected);
+    badge.textContent = `${detectedPatterns.length} patterns`;
+    badge.className = detectedPatterns.length > 0 ? 'badge bg-warning ms-2' : 'badge bg-success ms-2';
+    
+    if (detectedPatterns.length === 0) {
+      container.innerHTML = '<div class="alert alert-success">No problematic patterns detected in this session.</div>';
+      return;
+    }
+    
+    let html = '<div class="row">';
+    
+    detectedPatterns.forEach(([patternType, data], index) => {
+      if (index % 2 === 0 && index > 0) html += '</div><div class="row">';
+      
+      html += `
+        <div class="col-md-6 mb-3">
+          <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+              <h6 class="mb-0">${patternType.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</h6>
+            </div>
+            <div class="card-body">
+              <p><strong>Count:</strong> ${data.count}</p>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+  }
+
+  function displayStruggleClassification(classification) {
+    const container = document.getElementById('struggleClassification');
+    const badge = document.getElementById('strugglesFoundBadge');
+    
+    badge.textContent = `${classification.count} types`;
+    badge.className = classification.count > 0 ? 'badge bg-danger ms-2' : 'badge bg-success ms-2';
+    
+    if (classification.count === 0) {
+      container.innerHTML = '<div class="alert alert-success">No struggle types detected in this session.</div>';
+      return;
+    }
+    
+    let html = '';
+    classification.results.forEach(struggle => {
+      html += `
+        <div class="alert alert-warning">
+          <h6><strong>${struggle.type}</strong></h6>
+          <p>Confidence: ${(struggle.confidence * 100).toFixed(0)}%</p>
+          <p>${struggle.details}</p>
+        </div>
+      `;
+    });
+    
+    container.innerHTML = html;
+  }
+
+  function displayStruggleTrend(trend) {
+    const container = document.getElementById('struggleTrend');
+    
+    if (!trend.analysisAvailable) {
+      container.innerHTML = `<div class="alert alert-info">${trend.reason}</div>`;
+      return;
+    }
+    
+    const trendClass = trend.trend === 'improving' ? 'success' : 
+                      trend.trend === 'degrading' ? 'danger' : 'info';
+    
+    container.innerHTML = `
+      <div class="alert alert-${trendClass}">
+        <h6>Trend: ${trend.trend.toUpperCase()}</h6>
+        <p>Total Operations: ${trend.totalOperations}</p>
+        <p>Analysis Chunks: ${trend.chunks ? trend.chunks.length : 0}</p>
+        ${trend.avgFirstThird !== undefined ? `<p>First Third Avg: ${trend.avgFirstThird.toFixed(2)}</p>` : ''}
+        ${trend.avgLastThird !== undefined ? `<p>Last Third Avg: ${trend.avgLastThird.toFixed(2)}</p>` : ''}
+      </div>
+    `;
+  }
+
+  function displayRecommendations(recommendations) {
+    const container = document.getElementById('recommendations');
+    const badge = document.getElementById('recommendationsBadge');
+    
+    badge.textContent = `${recommendations.count} recommendations`;
+    badge.className = recommendations.count > 0 ? 'badge bg-info ms-2' : 'badge bg-secondary ms-2';
+    
+    if (recommendations.count === 0) {
+      container.innerHTML = '<div class="alert alert-success">No specific recommendations generated for this single session.</div>';
+      return;
+    }
+    
+    let html = '';
+    recommendations.results.forEach(rec => {
+      const impactClass = rec.impact === 'critical' ? 'danger' :
+                         rec.impact === 'high' ? 'warning' :
+                         rec.impact === 'medium' ? 'info' : 'secondary';
+      
+      html += `
+        <div class="card mb-3">
+          <div class="card-header">
+            <h6 class="mb-0">
+              ${rec.type}
+              <span class="badge bg-${impactClass} ms-2">${rec.impact} impact</span>
+            </h6>
+          </div>
+          <div class="card-body">
+            <p>${rec.description}</p>
+            <div class="row small text-muted">
+              <div class="col-md-3">Frequency Score: ${rec.frequencyScore}</div>
+              <div class="col-md-3">Time Score: ${rec.timeScore}</div>
+              <div class="col-md-3">Ease Score: ${rec.easeScore}</div>
+              <div class="col-md-3">Impact Score: ${rec.impactScore}</div>
+            </div>
+            ${rec.estimatedTimeSaved ? `<p class="mt-2 text-success">Potential time saved: ${rec.estimatedTimeSaved}</p>` : ''}
+          </div>
+        </div>
+      `;
+    });
+    
+    container.innerHTML = html;
+  }
+
+  function displayProcessingDetails(metadata) {
+    const container = document.getElementById('processingDetails');
+    
+    container.innerHTML = `
+      <div class="row">
+        <div class="col-md-6">
+          <h6>Performance</h6>
+          <ul class="list-unstyled">
+            <li><strong>Processing Time:</strong> ${metadata.processingTime}ms</li>
+            <li><strong>Analysis Version:</strong> ${metadata.analysisVersion}</li>
+            <li><strong>Timestamp:</strong> ${new Date(metadata.timestamp).toLocaleString()}</li>
+          </ul>
+        </div>
+        <div class="col-md-6">
+          <h6>Results Summary</h6>
+          <ul class="list-unstyled">
+            <li><strong>Total Pattern Types Found:</strong> ${metadata.totalPatternsFound}</li>
+            <li><strong>Status:</strong> <span class="text-success">Completed Successfully</span></li>
+          </ul>
+        </div>
+      </div>
+    `;
+  }
+
+  function showError(message) {
+    const statusMessages = document.getElementById('statusMessages');
+    statusMessages.innerHTML = `
+      <div class="alert alert-danger alert-dismissible fade show">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    `;
+  }
+
+  function showSuccess(message) {
+    const statusMessages = document.getElementById('statusMessages');
+    statusMessages.innerHTML = `
+      <div class="alert alert-success alert-dismissible fade show">
+        <i class="bi bi-check-circle me-2"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    `;
+  }
+
+  function displayAiReview(reviewData) {
+    const aiReviewSection = document.getElementById('aiReviewSection');
+    const aiReviewResults = document.getElementById('aiReviewResults');
+    const copyReviewBtn = document.getElementById('copyReviewBtn');
+    
+    // Store raw review text for copying
+    window.rawReviewText = reviewData.review;
+    
+    // Initialize markdown-it with HTML enabled for better rendering
+    const md = window.markdownit({
+      html: true,        // Enable HTML tags in source
+      breaks: true,      // Convert '\n' in paragraphs into <br>
+      linkify: true      // Autoconvert URL-like text to links
+    });
+    
+    // Convert markdown to HTML
+    const cleanReviewText = md.render(reviewData.review);
+
+    aiReviewResults.innerHTML = `
+      <div class="mb-3">
+        <div class="row mb-2">
+          <div class="col-md-6">
+            <small class="text-muted">
+              <i class="bi bi-clock me-1"></i>
+              Processing time: ${reviewData.metadata.processingTime}ms
+            </small>
+          </div>
+          <div class="col-md-6">
+            <small class="text-muted">
+              <i class="bi bi-chat-text me-1"></i>
+              Analyzed ${reviewData.metadata.conversationLength} messages
+            </small>
+          </div>
+        </div>
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <small class="text-muted">
+              <i class="bi bi-gear me-1"></i>
+              Analysis depth: ${reviewData.metadata.analysisDepth}
+            </small>
+          </div>
+          <div class="col-md-6">
+            <small class="text-muted">
+              <i class="bi bi-cpu me-1"></i>
+              Max tokens: ${reviewData.metadata.maxTokensUsed}
+            </small>
+          </div>
+        </div>
+      </div>
+      
+      <div class="ai-review-content">
+        ${cleanReviewText}
+      </div>
+    `;
+    
+    // Show the copy button and the AI review section
+    copyReviewBtn.style.display = 'block';
+    aiReviewSection.style.display = 'block';
+    aiReviewSection.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function displayAiReviewError(reviewData) {
+    const aiReviewSection = document.getElementById('aiReviewSection');
+    const aiReviewResults = document.getElementById('aiReviewResults');
+    
+    aiReviewResults.innerHTML = `
+      <div class="alert alert-warning">
+        <h6><i class="bi bi-exclamation-triangle me-2"></i>AI Review Not Available</h6>
+        <p><strong>Error:</strong> ${reviewData.error || 'Unknown error occurred'}</p>
+        ${reviewData.fallbackMessage ? `<p><strong>Fallback:</strong> ${reviewData.fallbackMessage}</p>` : ''}
+        <small class="text-muted">Generated at: ${new Date(reviewData.metadata?.timestamp || Date.now()).toLocaleString()}</small>
+      </div>
+    `;
+    
+    // Show the AI review section
+    aiReviewSection.style.display = 'block';
+    aiReviewSection.scrollIntoView({ behavior: 'smooth' });
+  }
+});
+</script>
+
+<%- include('partials/footer') %>

@@ -1,0 +1,1113 @@
+<%- include('partials/header') %>
+
+<style>
+.settings-card {
+  border: 1px solid #e9ecef;
+  border-radius: 0.5rem;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.settings-value {
+  font-family: 'Courier New', monospace;
+  background-color: #f8f9fa;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.settings-description {
+  font-size: 0.875rem;
+  color: #6c757d;
+  margin-top: 0.25rem;
+}
+
+.status-indicator {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  margin-right: 0.5rem;
+}
+
+.status-valid {
+  background-color: #28a745;
+}
+
+.status-invalid {
+  background-color: #dc3545;
+}
+
+.status-warning {
+  background-color: #ffc107;
+}
+
+.cli-option {
+  background-color: #f8f9fa;
+  border-left: 4px solid #007bff;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border-radius: 0 0.25rem 0.25rem 0;
+}
+
+.cli-flag {
+  font-family: 'Courier New', monospace;
+  color: #0d6efd;
+  font-weight: bold;
+}
+
+.cli-example {
+  font-family: 'Courier New', monospace;
+  background-color: #e9ecef;
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+}
+</style>
+
+<!-- Main Content -->
+<div class="container mt-4">
+  
+  <!-- Status Messages Area -->
+  <div id="statusMessages"></div>
+
+  <!-- Page Header -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <h1 class="display-6">
+        <i class="bi bi-gear-fill text-secondary me-2"></i>
+        Settings
+      </h1>
+      <p class="lead text-muted">System configuration and environment settings</p>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div id="loadingState" class="text-center">
+    <div class="spinner-border text-primary mb-3" role="status">
+      <span class="visually-hidden">Loading settings...</span>
+    </div>
+    <p class="text-muted">Loading configuration...</p>
+  </div>
+
+  <!-- Settings Content -->
+  <div id="settingsContent" style="display: none;">
+    
+    <!-- Environment Variables -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card settings-card">
+          <div class="card-header">
+            <h5 class="mb-0">
+              <i class="bi bi-list-ul me-2"></i>
+              Environment Variables
+            </h5>
+          </div>
+          <div class="card-body">
+            <div id="environmentVariables">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Runtime Information -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card settings-card">
+          <div class="card-header">
+            <h5 class="mb-0">
+              <i class="bi bi-cpu me-2"></i>
+              Runtime Information
+            </h5>
+          </div>
+          <div class="card-body">
+            <div id="runtimeInformation">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- System Information -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card settings-card">
+          <div class="card-header">
+            <h5 class="mb-0">
+              <i class="bi bi-info-circle me-2"></i>
+              System Information
+            </h5>
+          </div>
+          <div class="card-body">
+            <div id="systemInformation">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CLI Options -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card settings-card">
+          <div class="card-header">
+            <h5 class="mb-0">
+              <i class="bi bi-terminal me-2"></i>
+              CLI Options
+            </h5>
+          </div>
+          <div class="card-body">
+            <div id="cliOptions">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Error State -->
+  <div id="errorState" class="alert alert-danger d-none" role="alert">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    <strong>Error loading settings:</strong>
+    <span id="errorMessage">Unknown error</span>
+  </div>
+
+</div>
+
+<!-- Settings JavaScript -->
+<script>
+document.addEventListener('DOMContentLoaded', async function() {
+  try {
+    // Load settings data from API
+    const response = await fetch('/api/settings');
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const settings = await response.json();
+    
+    // Hide loading state and show content
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('settingsContent').style.display = 'block';
+    
+    // Populate settings sections
+    populateEnvironmentVariables(settings.environment);
+    populateRuntimeInformation(settings.runtime);
+    populateSystemInformation(settings.system);
+    populateCLIOptions(settings.cliOptions);
+    
+  } catch (error) {
+    console.error('Error loading settings:', error);
+    
+    // Show error state
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('errorState').classList.remove('d-none');
+    document.getElementById('errorMessage').textContent = error.message;
+  }
+});
+
+function populateEnvironmentVariables(environment) {
+  const container = document.getElementById('environmentVariables');
+  let html = '';
+  
+  for (const [key, config] of Object.entries(environment)) {
+    const isApiKey = key === 'ANTHROPIC_API_KEY';
+    const isLogsDir = key === 'CLAUDE_LOGS_DIR';
+    const value = isApiKey ? 
+      (config.hasKey ? '••••••••••••••••' : 'Not configured') : 
+      isLogsDir ?
+        (config.effective || config.current || 'Not set') :
+        (config.current || config.value || 'Not set');
+    
+    let statusClass = 'status-valid';
+    let statusText = 'Configured';
+    
+    if (isApiKey) {
+      statusClass = config.isValid ? 'status-valid' : 'status-invalid';
+      statusText = config.isValid ? 'Valid' : (config.hasKey ? 'Invalid' : 'Not configured');
+    } else if (isLogsDir) {
+      if (config.validation) {
+        statusClass = config.validation.valid ? 'status-valid' : 'status-invalid';
+        statusText = config.validation.valid ? 
+          `Valid (${config.validation.logFileCount || 0} log files)` : 
+          'Invalid directory';
+      } else {
+        statusClass = 'status-warning';
+        statusText = 'Unknown status';
+      }
+    } else if (key.includes('DIR') || key.includes('PATH')) {
+      // For directories, we'll assume they're valid for display purposes
+      statusClass = 'status-valid';
+    }
+    
+    if (isApiKey) {
+      // Special handling for API key with edit functionality
+      html += `
+        <div class="row mb-3" id="apiKeySection">
+          <div class="col-md-3">
+            <strong>${key}</strong>
+            <br><small class="text-muted">(${config.source || 'none'})</small>
+          </div>
+          <div class="col-md-6">
+            <!-- Read-only display -->
+            <div id="apiKeyDisplay">
+              <span class="settings-value">${escapeHtml(value)}</span>
+            </div>
+            <!-- Edit mode (initially hidden) -->
+            <div id="apiKeyEdit" style="display: none;">
+              <div class="mb-2">
+                <input type="password" class="form-control" id="apiKeyInput" placeholder="Enter your Anthropic API key..." autocomplete="off">
+              </div>
+              
+              <div class="text-muted mt-1">
+                <small>
+                  <i class="bi bi-info-circle me-1"></i>
+                  API key will be saved to your user config file for cross-platform persistence.
+                </small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="d-flex align-items-center gap-2">
+              <span class="status-indicator ${statusClass}"></span>
+              <small class="text-muted me-2">${statusText}</small>
+              
+              <!-- Control buttons -->
+              <button type="button" class="btn btn-sm btn-outline-primary" id="apiKeyEditBtn">
+                <i class="bi bi-pencil"></i> Edit
+              </button>
+              <button type="button" class="btn btn-sm btn-success d-none" id="apiKeySaveBtn">
+                <i class="bi bi-check"></i> Save
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-secondary d-none" id="apiKeyCancelBtn">
+                Cancel
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-danger" id="apiKeyClearBtn">
+                <i class="bi bi-trash"></i> Clear
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="row mb-3">
+          <div class="col-12">
+            <div class="settings-description">${config.description}</div>
+            
+            <!-- Expandable Help Section for API Key -->
+            <div class="mt-3">
+              <button class="btn btn-link p-0 text-decoration-none" type="button" data-bs-toggle="collapse" data-bs-target="#apiKeyHelp" aria-expanded="false">
+                <i class="bi bi-question-circle me-1"></i>
+                <small>Need help finding your API key?</small>
+                <i class="bi bi-chevron-down ms-1"></i>
+              </button>
+              
+              <div class="collapse mt-2" id="apiKeyHelp">
+                <div class="border rounded p-3 bg-light">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <small class="fw-bold text-muted">How to get your Anthropic API key:</small>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" id="copyApiKeyGuideBtn">
+                      <i class="bi bi-clipboard me-1"></i>Copy Steps
+                    </button>
+                  </div>
+                  <div class="bg-white border rounded p-2">
+                    <small class="text-muted" id="apiKeyGuideText" style="font-size: 0.8rem; line-height: 1.4;">
+<strong>Step 1:</strong> Go to <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> and sign up or log in
+
+<strong>Step 2:</strong> Generate your API key:
+• Click your Profile (top right corner)
+• Select "API Keys" 
+• Click "Create Key"
+• Name your key and copy it immediately
+• Store it securely (you won't be able to see it again)
+
+<strong>Step 3:</strong> Set up billing:
+• Go to "Plans & Billing" in left navigation
+• Either use free credits (requires phone verification) or add a credit card for paid usage
+
+<strong>Important:</strong> Your API key starts with the standard Anthropic prefix and is only shown once when created.
+                    </small>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Success/Error messages -->
+            <div id="apiKeyMessages"></div>
+          </div>
+        </div>
+        <hr>
+      `;
+    } else if (isLogsDir) {
+      // Special handling for logs directory with edit functionality
+      html += `
+        <div class="row mb-3" id="logsDirSection">
+          <div class="col-md-3">
+            <strong>${key}</strong>
+            <br><small class="text-muted">(${config.temporary ? 'temporary override' : config.value ? 'environment' : 'platform default'})</small>
+          </div>
+          <div class="col-md-6">
+            <!-- Read-only display -->
+            <div id="logsDirDisplay">
+              <span class="settings-value">${escapeHtml(value)}</span>
+              ${config.fallbackChain && config.fallbackChain.length > 1 ? `<br><small class="text-muted">Fallback: ${config.fallbackChain.map(item => item.source).join(' → ')}</small>` : ''}
+            </div>
+            <!-- Edit mode (initially hidden) -->
+            <div id="logsDirEdit" style="display: none;">
+              <div class="input-group">
+                <input type="text" class="form-control" id="logsDirInput" placeholder="/path/to/logs/directory" autocomplete="off">
+                <button type="button" class="btn btn-outline-info" id="logsDirTestBtn">
+                  <i class="bi bi-check-circle"></i> Test
+                </button>
+              </div>
+              <div id="logsDirValidation" class="mt-2"></div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="d-flex align-items-center gap-2">
+              <span class="status-indicator ${statusClass}"></span>
+              <small class="text-muted me-2">${statusText}</small>
+              
+              <!-- Control buttons -->
+              <button type="button" class="btn btn-sm btn-outline-primary" id="logsDirEditBtn">
+                <i class="bi bi-pencil"></i> Edit
+              </button>
+              <button type="button" class="btn btn-sm btn-success d-none" id="logsDirSaveBtn">
+                <i class="bi bi-check"></i> Save
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-secondary d-none" id="logsDirCancelBtn">
+                Cancel
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-danger" id="logsDirClearBtn">
+                <i class="bi bi-trash"></i> Clear
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="row mb-3">
+          <div class="col-12">
+            <div class="settings-description">${config.description}</div>
+            
+            <!-- Expandable Help Section -->
+            <div class="mt-3">
+              <button class="btn btn-link p-0 text-decoration-none" type="button" data-bs-toggle="collapse" data-bs-target="#logsDirHelp" aria-expanded="false">
+                <i class="bi bi-question-circle me-1"></i>
+                <small>Need help finding your logs?</small>
+                <i class="bi bi-chevron-down ms-1"></i>
+              </button>
+              
+              <div class="collapse mt-2" id="logsDirHelp">
+                <div class="border rounded p-3 bg-light">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <small class="fw-bold text-muted">Ask Claude to help locate your logs:</small>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" id="copyLogsFindPromptBtn">
+                      <i class="bi bi-clipboard me-1"></i>Copy Prompt
+                    </button>
+                  </div>
+                  <div class="bg-white border rounded p-2">
+                    <small class="font-monospace text-muted" id="logsFindPromptText" style="font-size: 0.75rem; line-height: 1.3;">
+I need help configuring the logs directory for Dash analysis tool. Please find my Claude Code conversation logs and tell me the exact path to use:
+
+1. Check the default Claude Code logs directory for my OS:
+   - macOS: ~/.claude/projects  
+   - Windows: %APPDATA%/Claude/projects
+   - Linux: ~/.claude/projects
+
+2. Use the Bash tool to verify this directory exists and contains .jsonl files
+
+3. If the default location is empty or doesn't exist, search my system for Claude Code logs by looking for:
+   - .jsonl files containing "conversation_" in the filename
+   - Directories named "sessions" or containing Claude conversation data
+   - Common alternative paths like Documents, Desktop, or project folders
+
+4. Once you find my logs, tell me the EXACT absolute path I should enter in the Settings page (e.g., "/Users/username/.claude/projects")
+
+5. If no logs are found, explain how to enable Claude Code conversation logging and where the logs will be stored
+                    </small>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Success/Error messages -->
+            <div id="logsDirMessages"></div>
+          </div>
+        </div>
+        <hr>
+      `;
+    } else {
+      // Regular environment variables (read-only)
+      html += `
+        <div class="row mb-3">
+          <div class="col-md-3">
+            <strong>${key}</strong>
+          </div>
+          <div class="col-md-6">
+            <span class="settings-value">${escapeHtml(value)}</span>
+            ${config.default ? `<br><small class="text-muted">Default: ${escapeHtml(config.default)}</small>` : ''}
+          </div>
+          <div class="col-md-3">
+            <span class="status-indicator ${statusClass}"></span>
+            <small class="text-muted">${statusText}</small>
+          </div>
+        </div>
+        <div class="row mb-3">
+          <div class="col-12">
+            <div class="settings-description">${config.description}</div>
+          </div>
+        </div>
+        <hr>
+      `;
+    }
+  }
+  
+  container.innerHTML = html;
+  
+  // Set up API key edit functionality after HTML is inserted
+  if (document.getElementById('apiKeyEditBtn')) {
+    setupApiKeyEditing();
+  }
+  
+  // Set up logs directory edit functionality after HTML is inserted
+  if (document.getElementById('logsDirEditBtn')) {
+    setupLogsDirectoryEditing();
+  }
+  
+  // Set up logs directory help copy button
+  if (document.getElementById('copyLogsFindPromptBtn')) {
+    setupLogsFindPromptCopy();
+  }
+  
+  // Set up API key help copy button
+  if (document.getElementById('copyApiKeyGuideBtn')) {
+    setupApiKeyGuideCopy();
+  }
+}
+
+function setupApiKeyEditing() {
+  const editBtn = document.getElementById('apiKeyEditBtn');
+  const saveBtn = document.getElementById('apiKeySaveBtn');
+  const cancelBtn = document.getElementById('apiKeyCancelBtn');
+  const clearBtn = document.getElementById('apiKeyClearBtn');
+  const display = document.getElementById('apiKeyDisplay');
+  const editDiv = document.getElementById('apiKeyEdit');
+  const input = document.getElementById('apiKeyInput');
+  const messages = document.getElementById('apiKeyMessages');
+
+  function showMessage(text, type = 'success') {
+    messages.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show mt-2" role="alert">
+      ${text}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>`;
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+      const alert = messages.querySelector('.alert');
+      if (alert) {
+        alert.remove();
+      }
+    }, 5000);
+  }
+
+  function enterEditMode() {
+    display.style.display = 'none';
+    editDiv.style.display = 'block';
+    editBtn.classList.add('d-none');
+    saveBtn.classList.remove('d-none');
+    cancelBtn.classList.remove('d-none');
+    input.focus();
+    
+    // Note: Server already displays current API key status
+    // No need to pre-populate from localStorage since we're using .env file persistence
+  }
+
+  function exitEditMode() {
+    display.style.display = 'block';
+    editDiv.style.display = 'none';
+    editBtn.classList.remove('d-none');
+    saveBtn.classList.add('d-none');
+    cancelBtn.classList.add('d-none');
+    input.value = '';
+  }
+
+  async function saveApiKey() {
+    const key = input.value.trim();
+    
+    if (!key) {
+      showMessage('Please enter an API key', 'warning');
+      return;
+    }
+
+    // Basic validation - rely on server-side validation
+    if (key.length < 50) {
+      showMessage('Please enter a valid Anthropic API key', 'warning');
+      return;
+    }
+
+    try {
+      // Save to user config file via API
+      const response = await fetch('/api/config/user-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'ANTHROPIC_API_KEY', value: key })
+      });
+
+      if (response.ok) {
+        showMessage('API key saved successfully', 'success');
+        exitEditMode();
+        
+        // Update the display to show masked key
+        const displayValue = document.querySelector('#apiKeyDisplay .settings-value');
+        if (displayValue) {
+          displayValue.textContent = '••••••••••••••••';
+        }
+        
+        // Update source indicator
+        const sourceElement = document.querySelector('#apiKeySection .text-muted');
+        if (sourceElement) {
+          sourceElement.textContent = '(user-config)';
+        }
+        
+        // Update status indicator
+        const statusIndicator = document.querySelector('#apiKeySection .status-indicator');
+        const statusText = document.querySelector('#apiKeySection .text-muted:not(:first-child)');
+        const sourceText = document.querySelector('#apiKeySection .text-muted:first-child');
+        
+        if (statusIndicator) {
+          statusIndicator.className = 'status-indicator status-valid';
+        }
+        if (statusText) {
+          statusText.textContent = 'Valid';
+        }
+        if (sourceText) {
+          sourceText.textContent = '(temporary)';
+        }
+      } else {
+        throw new Error('Failed to save API key to server');
+      }
+    } catch (error) {
+      console.error('Error saving API key:', error);
+      showMessage('Failed to save API key. Please try again.', 'danger');
+    }
+  }
+
+  async function clearApiKey() {
+    if (!confirm('Are you sure you want to clear the API key? This will remove it from your user config.')) {
+      return;
+    }
+
+    try {
+      // Remove from user config file via API
+      const response = await fetch('/api/config/user-settings', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'ANTHROPIC_API_KEY' })
+      });
+
+      if (response.ok) {
+        showMessage('API key cleared successfully', 'success');
+        
+        // Update the display
+        const displayValue = document.querySelector('#apiKeyDisplay .settings-value');
+        if (displayValue) {
+          displayValue.textContent = 'Not configured';
+        }
+      } else {
+        throw new Error('Failed to clear API key from server');
+      }
+    } catch (error) {
+      console.error('Error clearing API key:', error);
+      showMessage('Failed to clear API key. Please try again.', 'danger');
+    }
+  }
+
+  // Event listeners
+  editBtn.addEventListener('click', enterEditMode);
+  saveBtn.addEventListener('click', saveApiKey);
+  cancelBtn.addEventListener('click', exitEditMode);
+  clearBtn.addEventListener('click', clearApiKey);
+
+  // Enter key saves
+  input.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      saveApiKey();
+    }
+  });
+
+  // Escape key cancels
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      exitEditMode();
+    }
+  });
+}
+
+function setupLogsDirectoryEditing() {
+  const editBtn = document.getElementById('logsDirEditBtn');
+  const saveBtn = document.getElementById('logsDirSaveBtn');
+  const cancelBtn = document.getElementById('logsDirCancelBtn');
+  const clearBtn = document.getElementById('logsDirClearBtn');
+  const testBtn = document.getElementById('logsDirTestBtn');
+  const display = document.getElementById('logsDirDisplay');
+  const editDiv = document.getElementById('logsDirEdit');
+  const input = document.getElementById('logsDirInput');
+  const messages = document.getElementById('logsDirMessages');
+  const validation = document.getElementById('logsDirValidation');
+
+  function showMessage(text, type = 'success') {
+    messages.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show mt-2" role="alert">
+      ${text}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>`;
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+      messages.innerHTML = '';
+    }, 5000);
+  }
+
+  function showValidation(result, type = 'success') {
+    const iconClass = type === 'success' ? 'bi-check-circle text-success' : 'bi-exclamation-triangle text-warning';
+    validation.innerHTML = `
+      <div class="d-flex align-items-center">
+        <i class="bi ${iconClass} me-2"></i>
+        <small class="text-muted">${result.message || 'Validation completed'}</small>
+      </div>
+    `;
+  }
+
+  function enterEditMode() {
+    display.style.display = 'none';
+    editDiv.style.display = 'block';
+    editBtn.classList.add('d-none');
+    saveBtn.classList.remove('d-none');
+    cancelBtn.classList.remove('d-none');
+    input.focus();
+    validation.innerHTML = '';
+    
+    // Pre-populate with current effective path
+    const currentPath = document.querySelector('#logsDirDisplay .settings-value').textContent;
+    if (currentPath && currentPath !== 'Not set') {
+      input.value = currentPath;
+    }
+  }
+
+  function exitEditMode() {
+    display.style.display = 'block';
+    editDiv.style.display = 'none';
+    editBtn.classList.remove('d-none');
+    saveBtn.classList.add('d-none');
+    cancelBtn.classList.add('d-none');
+    input.value = '';
+    validation.innerHTML = '';
+  }
+
+  async function testDirectory() {
+    const directory = input.value.trim();
+    
+    if (!directory) {
+      showValidation({ message: 'Please enter a directory path' }, 'warning');
+      return;
+    }
+
+    try {
+      const response = await window.API.validateDirectory(directory);
+      
+      if (response.success) {
+        showValidation({
+          message: `Valid directory with ${response.logFileCount} log file${response.logFileCount !== 1 ? 's' : ''}`
+        }, 'success');
+      } else {
+        showValidation({
+          message: response.error || response.message || 'Directory validation failed'
+        }, 'warning');
+      }
+    } catch (error) {
+      console.error('Error validating directory:', error);
+      showValidation({
+        message: 'Failed to validate directory. Please try again.'
+      }, 'warning');
+    }
+  }
+
+  async function saveDirectory() {
+    const directory = input.value.trim();
+    
+    if (!directory) {
+      showMessage('Please enter a directory path', 'warning');
+      return;
+    }
+
+    try {
+      // First validate the directory
+      const validationResponse = await window.API.validateDirectory(directory);
+      
+      if (!validationResponse.success) {
+        showMessage(`Directory validation failed: ${validationResponse.error || validationResponse.message}`, 'warning');
+        return;
+      }
+
+      // Save to server
+      const response = await window.API.setTemporaryDirectory(directory);
+
+      if (response.success) {
+        showMessage('Logs directory updated successfully', 'success');
+        exitEditMode();
+        
+        // Update the display to show new directory
+        const displayValue = document.querySelector('#logsDirDisplay .settings-value');
+        if (displayValue) {
+          displayValue.textContent = directory;
+        }
+        
+        // Update source indicator
+        const sourceIndicator = document.querySelector('#logsDirSection .text-muted');
+        if (sourceIndicator) {
+          sourceIndicator.textContent = '(temporary override)';
+        }
+      } else {
+        throw new Error(response.message || 'Failed to save directory to server');
+      }
+    } catch (error) {
+      console.error('Error saving logs directory:', error);
+      showMessage('Failed to save logs directory. Please try again.', 'danger');
+    }
+  }
+
+  async function clearDirectory() {
+    if (!confirm('Are you sure you want to clear the temporary logs directory override? This will revert to the environment variable or platform default.')) {
+      return;
+    }
+
+    try {
+      const response = await window.API.clearTemporaryDirectory();
+
+      if (response.success) {
+        showMessage('Logs directory override cleared successfully', 'success');
+        
+        // Refresh the page to show updated values
+        setTimeout(() => {
+          location.reload();
+        }, 1000);
+      } else {
+        throw new Error(response.message || 'Failed to clear directory override');
+      }
+    } catch (error) {
+      console.error('Error clearing logs directory:', error);
+      showMessage('Failed to clear logs directory. Please try again.', 'danger');
+    }
+  }
+
+  // Event listeners
+  editBtn.addEventListener('click', enterEditMode);
+  saveBtn.addEventListener('click', saveDirectory);
+  cancelBtn.addEventListener('click', exitEditMode);
+  clearBtn.addEventListener('click', clearDirectory);
+  testBtn.addEventListener('click', testDirectory);
+
+  // Enter key saves
+  input.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      saveDirectory();
+    }
+  });
+
+  // Escape key cancels
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      exitEditMode();
+    }
+  });
+}
+
+function setupLogsFindPromptCopy() {
+  const copyBtn = document.getElementById('copyLogsFindPromptBtn');
+  const promptText = document.getElementById('logsFindPromptText');
+  
+  if (copyBtn && promptText) {
+    copyBtn.addEventListener('click', () => {
+      const textToCopy = promptText.textContent.trim();
+      
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard
+          .writeText(textToCopy)
+          .then(() => {
+            // Update button to show success
+            const originalHTML = copyBtn.innerHTML;
+            copyBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Copied!';
+            copyBtn.classList.remove('btn-outline-secondary');
+            copyBtn.classList.add('btn-success');
+            
+            // Reset after 2 seconds
+            setTimeout(() => {
+              copyBtn.innerHTML = originalHTML;
+              copyBtn.classList.remove('btn-success');
+              copyBtn.classList.add('btn-outline-secondary');
+            }, 2000);
+          })
+          .catch(err => {
+            console.error('Failed to copy prompt to clipboard:', err);
+            // Fallback for older browsers
+            fallbackCopyTextToClipboard(textToCopy);
+          });
+      } else {
+        // Fallback for older browsers
+        fallbackCopyTextToClipboard(textToCopy);
+      }
+    });
+  }
+}
+
+function fallbackCopyTextToClipboard(text) {
+  const textArea = document.createElement('textarea');
+  textArea.value = text;
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  
+  try {
+    document.execCommand('copy');
+    // Show success briefly
+    const copyBtn = document.getElementById('copyLogsFindPromptBtn');
+    if (copyBtn) {
+      const originalHTML = copyBtn.innerHTML;
+      copyBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Copied!';
+      copyBtn.classList.remove('btn-outline-secondary');
+      copyBtn.classList.add('btn-success');
+      
+      setTimeout(() => {
+        copyBtn.innerHTML = originalHTML;
+        copyBtn.classList.remove('btn-success');
+        copyBtn.classList.add('btn-outline-secondary');
+      }, 2000);
+    }
+  } catch (err) {
+    console.error('Fallback copy failed:', err);
+  }
+  
+  document.body.removeChild(textArea);
+}
+
+function setupApiKeyGuideCopy() {
+  const copyBtn = document.getElementById('copyApiKeyGuideBtn');
+  const guideText = document.getElementById('apiKeyGuideText');
+  
+  if (copyBtn && guideText) {
+    copyBtn.addEventListener('click', () => {
+      const textToCopy = guideText.textContent.trim();
+      
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard
+          .writeText(textToCopy)
+          .then(() => {
+            // Update button to show success
+            const originalHTML = copyBtn.innerHTML;
+            copyBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Copied!';
+            copyBtn.classList.remove('btn-outline-secondary');
+            copyBtn.classList.add('btn-success');
+            
+            // Reset after 2 seconds
+            setTimeout(() => {
+              copyBtn.innerHTML = originalHTML;
+              copyBtn.classList.remove('btn-success');
+              copyBtn.classList.add('btn-outline-secondary');
+            }, 2000);
+          })
+          .catch(err => {
+            console.error('Failed to copy API key guide to clipboard:', err);
+            // Fallback for older browsers
+            fallbackCopyTextToClipboard(textToCopy);
+          });
+      } else {
+        // Fallback for older browsers
+        fallbackCopyTextToClipboard(textToCopy);
+      }
+    });
+  }
+}
+
+function populateRuntimeInformation(runtime) {
+  const container = document.getElementById('runtimeInformation');
+  
+  const formatUptime = (seconds) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${secs}s`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${secs}s`;
+    } else {
+      return `${secs}s`;
+    }
+  };
+  
+  const formatBytes = (bytes) => {
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    if (bytes === 0) return '0 B';
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+  };
+  
+  let html = `
+    <div class="row mb-3">
+      <div class="col-md-4"><strong>Server Port</strong></div>
+      <div class="col-md-8"><span class="settings-value">${runtime.port}</span></div>
+    </div>
+    <div class="row mb-3">
+      <div class="col-md-4"><strong>Uptime</strong></div>
+      <div class="col-md-8"><span class="settings-value">${formatUptime(runtime.uptime)}</span></div>
+    </div>
+    <div class="row mb-3">
+      <div class="col-md-4"><strong>Environment Mode</strong></div>
+      <div class="col-md-8">
+        <span class="settings-value">${runtime.environment.isTest ? 'Test' : runtime.environment.isDev ? 'Development' : 'Production'}</span>
+      </div>
+    </div>
+    <hr>
+    <h6>Directory Status</h6>
+  `;
+  
+  const directories = [
+    { name: 'Logs Directory', valid: runtime.logsDirectoryValid },
+    { name: 'Output Directory', valid: runtime.outputDirectoryValid },
+    { name: 'Sessions Directory', valid: runtime.sessionsDirectoryValid },
+    { name: 'Reports Directory', valid: runtime.reportsDirectoryValid }
+  ];
+  
+  directories.forEach(dir => {
+    const statusClass = dir.valid ? 'status-valid' : 'status-invalid';
+    const statusText = dir.valid ? 'Found' : 'Missing';
+    
+    html += `
+      <div class="row mb-2">
+        <div class="col-md-6">${dir.name}</div>
+        <div class="col-md-6">
+          <span class="status-indicator ${statusClass}"></span>
+          <small class="text-muted">${statusText}</small>
+        </div>
+      </div>
+    `;
+  });
+  
+  container.innerHTML = html;
+}
+
+function populateSystemInformation(system) {
+  const container = document.getElementById('systemInformation');
+  
+  const formatBytes = (bytes) => {
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    if (bytes === 0) return '0 B';
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+  };
+  
+  let html = `
+    <div class="row mb-3">
+      <div class="col-md-4"><strong>Platform</strong></div>
+      <div class="col-md-8"><span class="settings-value">${system.platform} (${system.arch})</span></div>
+    </div>
+    <div class="row mb-3">
+      <div class="col-md-4"><strong>Node.js Version</strong></div>
+      <div class="col-md-8"><span class="settings-value">${system.nodeVersion}</span></div>
+    </div>
+    <div class="row mb-3">
+      <div class="col-md-4"><strong>CPU Cores</strong></div>
+      <div class="col-md-8"><span class="settings-value">${system.cpuCount}</span></div>
+    </div>
+    <div class="row mb-3">
+      <div class="col-md-4"><strong>Hostname</strong></div>
+      <div class="col-md-8"><span class="settings-value">${escapeHtml(system.hostname)}</span></div>
+    </div>
+    <div class="row mb-3">
+      <div class="col-md-4"><strong>User</strong></div>
+      <div class="col-md-8"><span class="settings-value">${escapeHtml(system.userInfo.username)}</span></div>
+    </div>
+    <hr>
+    <h6>Memory Usage</h6>
+    <div class="row mb-2">
+      <div class="col-md-4">RSS (Resident Set Size)</div>
+      <div class="col-md-8"><span class="settings-value">${formatBytes(system.memory.rss)}</span></div>
+    </div>
+    <div class="row mb-2">
+      <div class="col-md-4">Heap Total</div>
+      <div class="col-md-8"><span class="settings-value">${formatBytes(system.memory.heapTotal)}</span></div>
+    </div>
+    <div class="row mb-2">
+      <div class="col-md-4">Heap Used</div>
+      <div class="col-md-8"><span class="settings-value">${formatBytes(system.memory.heapUsed)}</span></div>
+    </div>
+    <hr>
+    <h6>Paths</h6>
+    <div class="row mb-2">
+      <div class="col-md-4">Home Directory</div>
+      <div class="col-md-8"><span class="settings-value">${escapeHtml(system.homedir)}</span></div>
+    </div>
+    <div class="row mb-2">
+      <div class="col-md-4">Default Logs Path</div>
+      <div class="col-md-8"><span class="settings-value">${escapeHtml(system.defaultLogsPath)}</span></div>
+    </div>
+  `;
+  
+  container.innerHTML = html;
+}
+
+function populateCLIOptions(cliOptions) {
+  const container = document.getElementById('cliOptions');
+  let html = '';
+  
+  // Analysis Options
+  html += '<h6 class="mb-3">Analysis Options</h6>';
+  cliOptions.analysis.forEach(option => {
+    html += `
+      <div class="cli-option">
+        <div class="cli-flag">${escapeHtml(option.flag)}</div>
+        <div>${option.description}</div>
+        <div class="cli-example">${escapeHtml(option.example)}</div>
+      </div>
+    `;
+  });
+  
+  // Server Options
+  html += '<h6 class="mb-3 mt-4">Server Options</h6>';
+  cliOptions.server.forEach(option => {
+    html += `
+      <div class="cli-option">
+        <div class="cli-flag">${escapeHtml(option.flag)}</div>
+        <div>${option.description}</div>
+        <div class="cli-example">${escapeHtml(option.example)}</div>
+      </div>
+    `;
+  });
+  
+  // Session Loading Options
+  if (cliOptions.sessionLoading && cliOptions.sessionLoading.length > 0) {
+    html += '<h6 class="mb-3 mt-4">Session Loading Options</h6>';
+    cliOptions.sessionLoading.forEach(option => {
+      html += `
+        <div class="cli-option">
+          <div class="cli-flag">${escapeHtml(option.flag)}</div>
+          <div>${option.description}</div>
+          <div class="cli-example">${escapeHtml(option.example)}</div>
+        </div>
+      `;
+    });
+  }
+  
+  container.innerHTML = html;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+</script>
+
+<%- include('partials/footer') %>

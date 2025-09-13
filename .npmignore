@@ -1,0 +1,53 @@
+# Test files
+tests/
+test-results/
+playwright-report/
+coverage/
+*.test.js
+*.spec.js
+
+# Development files
+.env
+.env.*
+*.log
+npm-debug.log*
+*.pid
+*.seed
+
+# Editor directories
+.vscode/
+.idea/
+
+# Git hooks
+.husky/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+node_modules/
+build/
+dist/
+tmp/
+
+# Development configuration
+.eslintrc*
+.prettierrc*
+.husky/
+lint-staged.config.js
+playwright.config.js
+tailwind.config.js
+
+# Documentation (keep README.md)
+CLAUDE.md
+DEVELOPMENT.md
+
+# Git
+.gitignore
+.git/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml

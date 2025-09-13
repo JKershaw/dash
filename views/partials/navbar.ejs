@@ -1,0 +1,46 @@
+<!-- Navigation Bar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <i class="bi bi-graph-up-arrow me-2"></i>
+      Dash
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item">
+          <a class="nav-link <%= currentPage === 'dashboard' ? 'active' : '' %>" href="/">
+            <i class="bi bi-speedometer2 me-1"></i>
+            Dashboard
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link <%= currentPage === 'results' ? 'active' : '' %>" href="/results">
+            <i class="bi bi-bar-chart me-1"></i>
+            Results
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link <%= currentPage === 'sessions' ? 'active' : '' %>" href="/sessions">
+            <i class="bi bi-folder2-open me-1"></i>
+            Sessions
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link <%= currentPage === 'debug' ? 'active' : '' %>" href="/debug">
+            <i class="bi bi-bug me-1"></i>
+            Debug
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link <%= currentPage === 'settings' ? 'active' : '' %>" href="/settings">
+            <i class="bi bi-gear me-1"></i>
+            Settings
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
