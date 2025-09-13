@@ -15,7 +15,7 @@ npx @jkershaw/dash
 ### Desktop App
 
 Download the latest version for your platform:
-- [macOS (Apple Silicon)](https://drive.google.com/file/d/1FtXW8Kc9lkvn5ItEEmK9UcAGRAFUtwL_/view?usp=sharing) - `Dash-v1.3.0-macOS-arm64.dmg`
+- [macOS (Apple Silicon)](https://drive.google.com/file/d/16J8ZaW8MrLkRcc2qM6Ok4AGGROiJNhjS/view?usp=sharing) - `Dash-v1.3.0-macOS-arm64.dmg`
 
 ## What Dash Does
 
