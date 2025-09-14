@@ -90,6 +90,7 @@ function formatSessionScript(markdownContent) {
     let conversationEntry = null;
     let toolEntry = null;
     let skipUntilNextHeader = false;
+    let toolBuffer = []; // Buffer for consecutive tool operations
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -118,14 +119,29 @@ function formatSessionScript(markdownContent) {
 
         // Use exact match instead of startsWith to avoid false positives like "## Summary Storage Locations"
         if (knownEndSections.includes(trimmedLine)) {
-          // End conversation section
+          // End conversation section - flush any pending entries
           if (conversationEntry) {
-            htmlOutput += formatConversationEntry(conversationEntry);
+            // Check if this is a tool entry that should be buffered
+            if (conversationEntry.isToolUse || conversationEntry.isToolResult) {
+              toolBuffer.push(conversationEntry);
+            } else {
+              // Flush tool buffer first, then add conversation entry
+              if (toolBuffer.length > 0) {
+                htmlOutput += formatToolGroup(toolBuffer);
+                toolBuffer = [];
+              }
+              htmlOutput += formatConversationEntry(conversationEntry);
+            }
             conversationEntry = null;
           }
           if (toolEntry) {
             htmlOutput += formatToolEntry(toolEntry);
             toolEntry = null;
+          }
+          // Flush any remaining tool buffer
+          if (toolBuffer.length > 0) {
+            htmlOutput += formatToolGroup(toolBuffer);
+            toolBuffer = [];
           }
           htmlOutput += '</div>';
           inConversation = false;
@@ -158,7 +174,17 @@ function formatSessionScript(markdownContent) {
         if (conversationMatch) {
           // Save previous entry
           if (conversationEntry) {
-            htmlOutput += formatConversationEntry(conversationEntry);
+            // Check if this is a tool entry that should be buffered
+            if (conversationEntry.isToolUse || conversationEntry.isToolResult) {
+              toolBuffer.push(conversationEntry);
+            } else {
+              // Flush tool buffer first, then add conversation entry
+              if (toolBuffer.length > 0) {
+                htmlOutput += formatToolGroup(toolBuffer);
+                toolBuffer = [];
+              }
+              htmlOutput += formatConversationEntry(conversationEntry);
+            }
           }
           if (toolEntry) {
             htmlOutput += formatToolEntry(toolEntry);
@@ -244,10 +270,25 @@ function formatSessionScript(markdownContent) {
 
     // Handle final entries
     if (conversationEntry) {
-      htmlOutput += formatConversationEntry(conversationEntry);
+      // Check if this is a tool entry that should be buffered
+      if (conversationEntry.isToolUse || conversationEntry.isToolResult) {
+        toolBuffer.push(conversationEntry);
+      } else {
+        // Flush tool buffer first, then add conversation entry
+        if (toolBuffer.length > 0) {
+          htmlOutput += formatToolGroup(toolBuffer);
+          toolBuffer = [];
+        }
+        htmlOutput += formatConversationEntry(conversationEntry);
+      }
     }
     if (toolEntry) {
       htmlOutput += formatToolEntry(toolEntry);
+    }
+    // Flush any remaining tool buffer
+    if (toolBuffer.length > 0) {
+      htmlOutput += formatToolGroup(toolBuffer);
+      toolBuffer = [];
     }
     if (inConversation) {
       htmlOutput += '</div>';
@@ -261,6 +302,60 @@ function formatSessionScript(markdownContent) {
     console.error('Error formatting session script:', error);
     return '<div class="alert alert-warning">Error parsing conversation content.</div>';
   }
+}
+
+/**
+ * Get Bootstrap 5 icon class for tool display
+ */
+function getToolIcon(toolName) {
+  const toolIconMap = {
+    'Read': 'bi-file-text',
+    'Write': 'bi-pencil-square', 
+    'Edit': 'bi-pencil',
+    'Bash': 'bi-terminal',
+    'Grep': 'bi-search',
+    'Glob': 'bi-folder2-open',
+    'TodoWrite': 'bi-list-check',
+    'WebFetch': 'bi-globe',
+    'Task': 'bi-target'
+  };
+  return toolIconMap[toolName] || 'bi-tools';
+}
+
+/**
+ * Format a group of consecutive tool operations as a compact row
+ */
+function formatToolGroup(toolEntries) {
+  if (toolEntries.length === 0) return '';
+  
+  // If only one tool, display it normally (no grouping needed)
+  if (toolEntries.length === 1) {
+    return formatConversationEntry(toolEntries[0]);
+  }
+  
+  // Create badges for each tool, matching the existing UI style
+  const toolBadges = toolEntries.map(entry => {
+    const toolName = entry.toolName || 'Result';
+    const iconClass = entry.toolName ? getToolIcon(entry.toolName) : 'bi-check-circle';
+    const badgeClass = entry.toolName ? 'badge bg-warning text-dark' : 'badge bg-info text-dark';
+    return `<span class="${badgeClass} ms-1"><i class="bi ${iconClass} me-1"></i>${toolName}</span>`;
+  }).join('');
+  
+  const groupId = `tool-group-${Math.random().toString(36).substring(2, 11)}`;
+  
+  return `
+    <div class="tool-group mb-3">
+      <div class="d-flex align-items-center">
+        <div class="tool-badges">${toolBadges}</div>
+        <span class="text-muted ms-2">(${toolEntries.length} tools)</span>
+        <button class="btn btn-sm btn-link ms-auto tool-group-toggle" onclick="toggleToolGroup('${groupId}')" data-group-id="${groupId}">
+          <i class="bi bi-chevron-down"></i>
+        </button>
+      </div>
+      <div id="${groupId}" class="tool-group-details mt-2" style="display: none;">
+        ${toolEntries.map(entry => formatConversationEntry(entry)).join('')}
+      </div>
+    </div>`;
 }
 
 /**
@@ -616,6 +711,21 @@ function showError(message) {
 /**
  * Toggle conversation-only mode to hide/show tool messages
  */
+// Tool group collapsing functionality
+function toggleToolGroup(groupId) {
+  const groupDetails = document.getElementById(groupId);
+  const toggleButton = document.querySelector(`[data-group-id="${groupId}"]`);
+  const chevronIcon = toggleButton.querySelector('i');
+
+  if (groupDetails.style.display === 'none') {
+    groupDetails.style.display = 'block';
+    chevronIcon.className = 'bi bi-chevron-up';
+  } else {
+    groupDetails.style.display = 'none';
+    chevronIcon.className = 'bi bi-chevron-down';
+  }
+}
+
 function toggleConversationOnly() {
   console.log('🔍 Toggling conversation only mode...');
   const container = document.getElementById(`formattedView_${currentSessionId}`);

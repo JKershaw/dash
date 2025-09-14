@@ -99,19 +99,39 @@
       </div>
     </div>
 
-    <!-- Pattern Detection Results -->
+    <!-- Struggle Pattern Detection Results -->
     <div class="row mb-4">
       <div class="col-12">
         <div class="card">
           <div class="card-header">
             <h5 class="mb-0">
-              <i class="bi bi-search me-2"></i>
-              Pattern Detection Results
+              <i class="bi bi-exclamation-triangle me-2"></i>
+              Struggle Pattern Detection Results
               <span id="patternsFoundBadge" class="badge bg-secondary ms-2">0 patterns</span>
             </h5>
           </div>
           <div class="card-body">
             <div id="patternResults">
+              <!-- Will be populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Success Pattern Detection Results -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">
+              <i class="bi bi-check-circle me-2"></i>
+              Success Pattern Detection Results
+              <span id="successPatternsFoundBadge" class="badge bg-secondary ms-2">0 patterns</span>
+            </h5>
+          </div>
+          <div class="card-body">
+            <div id="successPatternResults">
               <!-- Will be populated by JavaScript -->
             </div>
           </div>
@@ -427,6 +447,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function displayAnalysisResults(data) {
     displaySessionOverview(data);
     displayPatternResults(data.patternResults);
+    displaySuccessPatternResults(data.patternResults);
     displayStruggleClassification(data.struggleClassification);
     displayStruggleTrend(data.struggleTrend);
     displayRecommendations(data.recommendations);
@@ -472,12 +493,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const container = document.getElementById('patternResults');
     const badge = document.getElementById('patternsFoundBadge');
     
-    const detectedPatterns = Object.entries(patterns).filter(([_, data]) => data.detected);
+    // Define struggle patterns (negative indicators)
+    const strugglePatterns = [
+      'simpleLoops', 'advancedLoops', 'longSessions', 'errorPatterns',
+      'noProgressSessions', 'stagnation', 'planEditingLoops', 'readingSpirals',
+      'shotgunDebugging', 'redundantSequences', 'contextSwitching', 'bashErrorPatterns'
+    ];
+    
+    const detectedPatterns = Object.entries(patterns)
+      .filter(([patternType, data]) => strugglePatterns.includes(patternType) && data.detected);
+    
     badge.textContent = `${detectedPatterns.length} patterns`;
     badge.className = detectedPatterns.length > 0 ? 'badge bg-warning ms-2' : 'badge bg-success ms-2';
     
     if (detectedPatterns.length === 0) {
-      container.innerHTML = '<div class="alert alert-success">No problematic patterns detected in this session.</div>';
+      container.innerHTML = '<div class="alert alert-success">No struggle patterns detected in this session.</div>';
       return;
     }
     
@@ -490,6 +520,49 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="col-md-6 mb-3">
           <div class="card border-warning">
             <div class="card-header bg-warning text-dark">
+              <h6 class="mb-0">${patternType.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</h6>
+            </div>
+            <div class="card-body">
+              <p><strong>Count:</strong> ${data.count}</p>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+  }
+
+  function displaySuccessPatternResults(patterns) {
+    const container = document.getElementById('successPatternResults');
+    const badge = document.getElementById('successPatternsFoundBadge');
+    
+    // Define success patterns (positive indicators)
+    const successPatterns = [
+      'aiCollaborationEffectiveness', 'problemSolvingSuccess', 'productiveSessions'
+    ];
+    
+    const detectedPatterns = Object.entries(patterns)
+      .filter(([patternType, data]) => successPatterns.includes(patternType) && data.detected);
+    
+    badge.textContent = `${detectedPatterns.length} patterns`;
+    badge.className = detectedPatterns.length > 0 ? 'badge bg-success ms-2' : 'badge bg-secondary ms-2';
+    
+    if (detectedPatterns.length === 0) {
+      container.innerHTML = '<div class="alert alert-info">No success patterns detected in this session.</div>';
+      return;
+    }
+    
+    let html = '<div class="row">';
+    
+    detectedPatterns.forEach(([patternType, data], index) => {
+      if (index % 2 === 0 && index > 0) html += '</div><div class="row">';
+      
+      html += `
+        <div class="col-md-6 mb-3">
+          <div class="card border-success">
+            <div class="card-header bg-success text-white">
               <h6 class="mb-0">${patternType.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</h6>
             </div>
             <div class="card-body">

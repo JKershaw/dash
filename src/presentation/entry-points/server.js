@@ -5,9 +5,12 @@ import { fileURLToPath, URL } from 'url';
 import { readFileSync } from 'fs';
 // Data service removed - all data loaded via API endpoints
 import { setupAPIRoutes, setupErrorHandling, setupRequestLogging } from '../api/routes.js';
+import { isTest } from '../../config.js';
 
-// Load environment variables
-config();
+// Load environment variables (but not in tests)
+if (!isTest()) {
+  config();
+}
 
 // Load version from package.json
 const packageJson = JSON.parse(

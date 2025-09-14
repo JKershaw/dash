@@ -378,10 +378,14 @@ I need the exact file path to configure this analysis tool. Please give me speci
 </div>
 
 
-<!-- Charts Library (must load before dashboard.js) -->
+<!-- Charts Library (must load before dashboard modules) -->
 <script src="/public/js/charts.js"></script>
 
-<!-- Dashboard JavaScript -->
-<script type="module" src="/public/js/dashboard.js"></script>
+<!-- Dashboard JavaScript Modules (load order matters) -->
+<script src="/public/js/dashboard-core.js"></script>
+<script src="/public/js/dashboard-analysis.js"></script>
+<script src="/public/js/dashboard-sessions.js"></script>
+<script src="/public/js/dashboard-charts.js"></script>
+<script src="/public/js/dashboard.js"></script>
 
 <%- include('partials/footer') %>

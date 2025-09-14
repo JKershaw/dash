@@ -23,7 +23,7 @@ export function generateProgressUI(state) {
       percentage: state.percentage,
       isComplete,
       isError: false,
-      hasLLMError: false
+      hasLLMError: state.hasWarnings || false
     },
     
     status: {
@@ -114,7 +114,6 @@ export function generateProgressBarConfig(state) {
     percentage: state.percentage,
     isComplete: state.percentage >= 100,
     isError: state.error || false,
-    hasLLMError: state.llmError || false,
     animated: state.percentage > 0 && state.percentage < 100
   };
 }

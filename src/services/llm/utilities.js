@@ -56,6 +56,11 @@ export function parseUserFriendlyMessage(error, context = 'AI analysis') {
     return `${context} failed: API rate limit exceeded. Please wait a moment and try again`;
   }
 
+  // Overloaded service
+  if (errorMessage.includes('overloaded_error') || errorMessage.includes('Overloaded')) {
+    return `${context} failed: AI service is temporarily overloaded. Please try again in a few moments`;
+  }
+
   // Network/timeout issues
   if (
     errorMessage.includes('timeout') ||

@@ -8,7 +8,6 @@ import {
   loadAnalysisHistory,
   loadAnalysisMetadataByRunId,
 } from '../../../services/analysis-data.js';
-import { findLogFilesWithMetadata } from '../../../infrastructure/persistence/logService.js';
 // Removed: generateProgressUI - now using UnifiedProgressService.getProgressUI()
 
 /**
@@ -279,6 +278,9 @@ export function setupAnalysisRoutes(app) {
       const progressService = getUnifiedProgressService();
       const progressData = progressService.getProgress(jobId);
       const uiData = progressService.getProgressUI(jobId);
+
+      // Note: Error flags are now set correctly by the progress system
+      // No override needed - UnifiedProgressService receives error info directly
 
       const response = {
         jobId,

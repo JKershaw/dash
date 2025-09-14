@@ -183,7 +183,7 @@ function extractCompleteSolution(content) {
   );
   
   if (solutionBlock) {
-    return solutionBlock.trim();
+    return sanitizeSolutionContent(solutionBlock.trim());
   }
   
   // Fallback: look for sentences with resolution indicators
@@ -195,10 +195,42 @@ function extractCompleteSolution(content) {
   );
   
   if (solutionSentences.length > 0) {
-    return solutionSentences[0].trim();
+    return sanitizeSolutionContent(solutionSentences[0].trim());
   }
   
   return null;
+}
+
+/**
+ * Sanitize solution content to prevent JSON serialization issues
+ * @param {string} content - Raw solution content
+ * @returns {string} Sanitized content safe for JSON storage
+ */
+function sanitizeSolutionContent(content) {
+  if (!content || typeof content !== 'string') {
+    return '';
+  }
+  
+  // Remove embedded JSON blocks that cause parsing issues
+  let sanitized = content.replace(/```json[\s\S]*?```/g, '[JSON block removed]');
+  
+  // Remove other code blocks that might contain problematic content
+  sanitized = sanitized.replace(/```[\s\S]*?```/g, '[Code block removed]');
+  
+  // Escape problematic characters for JSON
+  sanitized = sanitized
+    .replace(/\\/g, '\\\\')  // Escape backslashes first
+    .replace(/"/g, '\\"')     // Escape quotes
+    .replace(/\n/g, '\\n')    // Escape newlines
+    .replace(/\r/g, '\\r')    // Escape carriage returns
+    .replace(/\t/g, '\\t');   // Escape tabs
+  
+  // Truncate if still too long to prevent issues
+  if (sanitized.length > 300) {
+    sanitized = sanitized.substring(0, 297) + '...';
+  }
+  
+  return sanitized;
 }
 
 /**

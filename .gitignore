@@ -47,6 +47,8 @@ public/css/tailwind-built.css
 .husky/
 
 # Electron build outputs
+dist/
+*.dmg
 *.exe
 *.AppImage
 *.deb

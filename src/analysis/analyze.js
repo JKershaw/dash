@@ -220,7 +220,6 @@ export async function processClaudeLogs(options = {}, progressCallback = null, d
 
     // Step 5: Enhanced analysis (if enabled)
     let enhancedAnalysis = null;
-    let llmError = null;
     if (options.includeEnhanced !== false) {
       // Default to enabled
       trackPhase(metadata, 'enhancedAnalysis', 'start');
@@ -239,8 +238,10 @@ export async function processClaudeLogs(options = {}, progressCallback = null, d
 
         // Capture LLM errors for frontend display
         if (enhancedAnalysis?.error) {
-          llmError = enhancedAnalysis.error;
-          trackError(metadata, enhancedAnalysis.error, { phase: 'enhancedAnalysis' });
+          trackError(metadata, enhancedAnalysis.error, { 
+            phase: 'enhancedAnalysis', 
+            severity: 'warning' 
+          });
           trackPhase(metadata, 'enhancedAnalysis', 'complete', { success: false });
           emitProgress('enhancedAnalysis:complete', {
             message: 'Enhanced analysis completed with issues',
@@ -256,6 +257,11 @@ export async function processClaudeLogs(options = {}, progressCallback = null, d
             trackOutputFile(metadata, 'enhanced-analysis', enhancedAnalysisPath);
           } catch (saveError) {
             console.warn('⚠️ Failed to save enhanced analysis:', saveError.message);
+            trackError(metadata, saveError, {
+              phase: 'enhancedAnalysis',
+              context: 'file save',
+              severity: 'warning'
+            });
           }
 
           trackPhase(metadata, 'enhancedAnalysis', 'complete', { success: true });
@@ -266,13 +272,13 @@ export async function processClaudeLogs(options = {}, progressCallback = null, d
         }
       } catch (error) {
         console.warn('⚠️ Enhanced analysis failed:', error.message);
-        trackError(metadata, error, { phase: 'enhancedAnalysis' });
-        trackPhase(metadata, 'enhancedAnalysis', 'error');
-        llmError = {
+        trackError(metadata, error, { 
+          phase: 'enhancedAnalysis', 
+          severity: 'warning',
           type: 'llm_error',
-          message: `Enhanced AI analysis failed: ${error.message}`,
-          details: error.message,
-        };
+          details: error.message
+        });
+        trackPhase(metadata, 'enhancedAnalysis', 'error');
         emitProgress('enhancedAnalysis:complete', {
           message: 'Enhanced analysis completed with fallback',
           details: 'Used synthetic content due to AI unavailability',
@@ -323,10 +329,8 @@ export async function processClaudeLogs(options = {}, progressCallback = null, d
             trackError(metadata, summaryError, {
               phase: 'generateReports',
               context: 'executive summary',
+              severity: 'warning'
             });
-            if (!llmError || summaryError.message?.includes('credit balance')) {
-              llmError = summaryError;
-            }
           }
         }
 
@@ -344,7 +348,10 @@ export async function processClaudeLogs(options = {}, progressCallback = null, d
         });
       } catch (error) {
         console.warn('⚠️ Report generation failed:', error.message);
-        trackError(metadata, error, { phase: 'generateReports' });
+        trackError(metadata, error, { 
+          phase: 'generateReports',
+          severity: 'warning' 
+        });
         trackPhase(metadata, 'generateReports', 'error');
         emitProgress('generateReports:complete', {
           message: 'Report generation completed with errors',
@@ -372,6 +379,11 @@ export async function processClaudeLogs(options = {}, progressCallback = null, d
       console.log(`📊 Analysis metadata saved to ${metadataPath}`);
     } catch (error) {
       console.warn('⚠️ Failed to save metadata:', error.message);
+      trackError(metadata, error, {
+        phase: 'generateReports',
+        context: 'metadata save',
+        severity: 'warning'
+      });
     }
 
     // Return results in same format as original pipeline
@@ -380,7 +392,7 @@ export async function processClaudeLogs(options = {}, progressCallback = null, d
       recommendations,
       enhancedAnalysis,
       executiveSummary: null, // Will be loaded separately if needed
-      llmError, // Include LLM error info for frontend
+      // llmError removed - errors now tracked in metadata.errors
       metadata: finalizeMetadata(metadata), // Include metadata in response
     };
   } catch (error) {

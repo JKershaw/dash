@@ -129,8 +129,25 @@ export class KnowledgeGraph {
   async _ensureLoaded() {
     if (this.data === null) {
       if (await pathExists(this.filePath)) {
-        const content = await readFileContent(this.filePath);
-        this.data = JSON.parse(content);
+        try {
+          const content = await readFileContent(this.filePath);
+          this.data = JSON.parse(content);
+        } catch (parseError) {
+          console.warn('⚠️ Knowledge graph file corrupted, creating backup and starting fresh:', parseError.message);
+          
+          // Create backup of corrupted file
+          try {
+            const backupPath = `${this.filePath}.corrupted-${Date.now()}`;
+            const content = await readFileContent(this.filePath);
+            await writeFileContent(backupPath, content);
+            console.log(`📁 Corrupted file backed up to: ${backupPath}`);
+          } catch (backupError) {
+            console.warn('Failed to backup corrupted file:', backupError.message);
+          }
+          
+          // Initialize with empty structure
+          this.data = { sessions: {}, indexes: { concepts: {}, errors: {} } };
+        }
       } else {
         this.data = { sessions: {}, indexes: { concepts: {}, errors: {} } };
       }
@@ -138,7 +155,67 @@ export class KnowledgeGraph {
   }
 
   async _save() {
-    await writeFileContent(this.filePath, JSON.stringify(this.data, null, 2));
+    try {
+      const jsonString = JSON.stringify(this.data, null, 2);
+      await writeFileContent(this.filePath, jsonString);
+    } catch (stringifyError) {
+      console.warn('⚠️ Failed to save knowledge graph due to JSON serialization error:', stringifyError.message);
+      
+      // Try to save a cleaned version by filtering out problematic entries
+      try {
+        const cleanedData = this._createCleanedData();
+        const jsonString = JSON.stringify(cleanedData, null, 2);
+        await writeFileContent(this.filePath, jsonString);
+        console.log('✅ Saved knowledge graph with problematic entries removed');
+      } catch (fallbackError) {
+        console.warn('❌ Even fallback save failed:', fallbackError.message);
+        // Don't throw - let the process continue
+      }
+    }
+  }
+
+  _createCleanedData() {
+    const cleanedData = {
+      sessions: {},
+      indexes: { concepts: {}, errors: {} }
+    };
+
+    // Try to copy each session, skipping problematic ones
+    for (const [sessionId, sessionData] of Object.entries(this.data.sessions || {})) {
+      try {
+        // Test if this session can be serialized
+        JSON.stringify(sessionData);
+        cleanedData.sessions[sessionId] = sessionData;
+      } catch (sessionError) {
+        console.warn(`Skipping problematic session ${sessionId}:`, sessionError.message);
+        // Skip this session but continue with others
+      }
+    }
+
+    // Rebuild indexes from cleaned sessions
+    for (const [sessionId, sessionData] of Object.entries(cleanedData.sessions)) {
+      // Index concepts
+      sessionData.concepts?.forEach(concept => {
+        if (!cleanedData.indexes.concepts[concept]) {
+          cleanedData.indexes.concepts[concept] = [];
+        }
+        if (!cleanedData.indexes.concepts[concept].includes(sessionId)) {
+          cleanedData.indexes.concepts[concept].push(sessionId);
+        }
+      });
+      
+      // Index errors
+      sessionData.errors?.forEach(error => {
+        if (!cleanedData.indexes.errors[error]) {
+          cleanedData.indexes.errors[error] = [];
+        }
+        if (!cleanedData.indexes.errors[error].includes(sessionId)) {
+          cleanedData.indexes.errors[error].push(sessionId);
+        }
+      });
+    }
+
+    return cleanedData;
   }
 
   _calculateSimilarityScore(query, sessionData) {

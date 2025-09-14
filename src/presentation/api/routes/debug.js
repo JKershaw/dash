@@ -17,6 +17,10 @@ import {
   detectContextSwitching,
   analyzeStruggleTrend,
 } from '../../../domain/struggle-detector.js';
+import { detectAiCollaborationEffectiveness } from '../../../domain/detectors/ai-collaboration-effectiveness-detector.js';
+import { detectProblemSolvingSuccess } from '../../../domain/detectors/problem-solving-success-detector.js';
+import { detectProductiveSessions } from '../../../domain/detectors/productive-session-detector.js';
+import { detectBashErrorPatterns } from '../../../domain/detectors/bash-error-classifier.js';
 import { classifyStruggle } from '../../../domain/problem-classifier.js';
 import { generateRecommendations } from '../../../shared/utilities/report-generator.js';
 import { getAnalysisData } from '../../../services/analysis-data.js';
@@ -79,6 +83,10 @@ export function setupDebugRoutes(app) {
         shotgunDebugging: detectShotgunDebugging(session),
         redundantSequences: detectRedundantSequences(session),
         contextSwitching: detectContextSwitching(session),
+        aiCollaborationEffectiveness: detectAiCollaborationEffectiveness(session),
+        problemSolvingSuccess: detectProblemSolvingSuccess(session),
+        productiveSessions: detectProductiveSessions(session),
+        bashErrorPatterns: detectBashErrorPatterns(session),
       };
 
       // Run struggle classification
@@ -211,6 +219,7 @@ export function setupDebugRoutes(app) {
           forPatternDetection: (session.toolOperations?.length || 0) >= 5,
           forTrendAnalysis: (session.toolOperations?.length || 0) >= 100,
           forErrorAnalysis: session.toolOperations?.some(op => op.status === 'error') || false,
+          forSuccessAnalysis: (session.toolOperations?.length || 0) >= 10 && !session.hasStruggle,
         },
       }));
 
@@ -274,6 +283,10 @@ export function setupDebugRoutes(app) {
         shotgunDebugging: detectShotgunDebugging(session),
         redundantSequences: detectRedundantSequences(session),
         contextSwitching: detectContextSwitching(session),
+        aiCollaborationEffectiveness: detectAiCollaborationEffectiveness(session),
+        problemSolvingSuccess: detectProblemSolvingSuccess(session),
+        productiveSessions: detectProductiveSessions(session),
+        bashErrorPatterns: detectBashErrorPatterns(session),
       };
 
       // Get struggle classification
@@ -419,7 +432,7 @@ You are analyzing interactions between a human developer and Claude Code (an AI 
 **Project:** ${session.projectName} | **Duration:** ${Math.floor(session.durationSeconds / 60)}min | **Messages:** ${session.conversation?.length || 0} | **Tools:** ${session.toolOperations?.length || 0}
 
 ## DETECTOR IMPLEMENTATION CONTEXT
-**Available Detectors & Their Current Logic:**
+**Available Struggle Pattern Detectors & Their Current Logic:**
 - **redundantSequences**: Only detects Read→Edit→Read same file + Bash→Bash same command patterns
 - **stagnation**: Flags operations with identical inputs/outputs using pattern recognition
 - **simpleLoops**: Counts tool repetition above thresholds (e.g., 3+ same tool in sequence)  
@@ -429,6 +442,12 @@ You are analyzing interactions between a human developer and Claude Code (an AI 
 - **shotgunDebugging**: Detects rapid tool switching patterns
 - **readingSpirals**: Identifies excessive reading without action
 - **contextSwitching**: Flags rapid file/context switches
+- **bashErrorPatterns**: Enhanced bash error classification and pattern analysis
+
+**Available Success Pattern Detectors & Their Current Logic:**
+- **aiCollaborationEffectiveness**: Identifies when AI suggestions work well and collaboration is effective
+- **problemSolvingSuccess**: Detects efficient resolution of complex issues on first/second attempt
+- **productiveSessions**: Highlights highly productive sessions with systematic work and clean implementations
 
 **Current Pattern Detection Results:**
 ${detectedPatternsSummary}

@@ -83,7 +83,7 @@ export class JobManager {
     this.currentJob.progress.percentage = 100;
     this.currentJob.progress.current = 'Analysis complete';
     this.currentJob.endTime = new Date().toISOString();
-    this.currentJob.result = result; // This preserves llmError!
+    this.currentJob.result = result; // This preserves result data including metadata.errors
   }
 
   /**
@@ -96,7 +96,7 @@ export class JobManager {
 
     this.currentJob.status = 'failed';
     this.currentJob.endTime = new Date().toISOString();
-    // Store error as object like tests expect
+    // Store error as object like tests expect (legacy - errors should now be in result.metadata.errors)
     this.currentJob.error = error instanceof Error ? error : new Error(String(error));
   }
 

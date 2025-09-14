@@ -461,6 +461,48 @@ function updateAnalysisMetadataDisplay(container, metadata) {
           </div>
         </div>
       </div>
+
+      ${computed.hasErrors ? `
+      <!-- Error Details -->
+      <div class="col-12">
+        <div class="card border-warning">
+          <div class="card-body">
+            <h6 class="card-title text-warning">
+              <i class="bi bi-exclamation-triangle me-2"></i>
+              Analysis Issues (${metadata.errors.length})
+            </h6>
+            <div class="accordion accordion-flush" id="errorAccordion">
+              ${metadata.errors.map((error, index) => `
+                <div class="accordion-item">
+                  <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" 
+                            data-bs-toggle="collapse" data-bs-target="#error${index}" 
+                            aria-expanded="false" aria-controls="error${index}">
+                      <i class="bi bi-clock me-2 text-muted"></i>
+                      ${error.phase || 'Unknown Phase'}: ${error.message || 'Unknown error'}
+                      <span class="badge bg-warning ms-auto">${new Date(error.timestamp).toLocaleTimeString()}</span>
+                    </button>
+                  </h2>
+                  <div id="error${index}" class="accordion-collapse collapse" data-bs-parent="#errorAccordion">
+                    <div class="accordion-body">
+                      <p><strong>Error:</strong> ${error.message}</p>
+                      ${error.phase ? `<p><strong>Phase:</strong> ${error.phase}</p>` : ''}
+                      ${error.context ? `<p><strong>Context:</strong> ${error.context}</p>` : ''}
+                      <small class="text-muted">Time: ${new Date(error.timestamp).toLocaleString()}</small>
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+            <div class="alert alert-warning mt-3 mb-0">
+              <i class="bi bi-info-circle me-2"></i>
+              These errors occurred during analysis but did not prevent completion. 
+              Fallback content was used where necessary.
+            </div>
+          </div>
+        </div>
+      </div>
+      ` : ''}
     </div>
   `;
 }

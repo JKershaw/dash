@@ -4,7 +4,7 @@
  */
 
 import { randomUUID } from 'crypto';
-import { getLogsDir, getOutputDir } from '../config.js';
+import { getEffectiveLogsDir, getOutputDir } from '../config.js';
 
 /**
  * Create a new metadata structure for an analysis run
@@ -23,7 +23,7 @@ export function createMetadata() {
       nodeVersion: process.version,
       platform: process.platform,
       workingDirectory: process.cwd(),
-      claudeLogsDir: getLogsDir(),
+      claudeLogsDir: getEffectiveLogsDir(),
       outputDir: getOutputDir(),
     },
     input: {},

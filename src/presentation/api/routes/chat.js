@@ -259,11 +259,24 @@ export function setupChatRoutes(app) {
           metadata: job.metadata
         });
       } else if (job.status === 'error') {
+        // Extract error information from metadata for unified error handling
+        const metadata = job.result?.metadata;
+        const errors = metadata?.errors || [];
+        const criticalErrors = errors.filter(e => e.severity === 'critical');
+        const errorSummary = criticalErrors.length > 0 
+          ? criticalErrors[0] 
+          : errors[0] || job.error; // Fallback to legacy job.error if no metadata
+
         res.status(500).json({
           status: 'error',
-          error: job.error,
+          error: errorSummary,
           conversationId,
-          timestamp: job.timestamp
+          timestamp: job.timestamp,
+          metadata: {
+            totalErrors: errors.length,
+            criticalErrors: criticalErrors.length,
+            warnings: errors.filter(e => e.severity === 'warning').length
+          }
         });
       }
     } catch (error) {
@@ -288,7 +301,10 @@ async function processChatInBackground(conversationId, message, conversation, an
     });
 
     // Add delay for initialization phase (so frontend can see it)
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const initDelay = process.env.CHAT_INIT_DELAY_MS || (process.env.NODE_ENV === 'test' ? 0 : 1000);
+    if (initDelay > 0) {
+      await new Promise(resolve => setTimeout(resolve, parseInt(initDelay)));
+    }
 
     // Report context loading progress
     console.log('📥 Reporting context loading...');
@@ -298,7 +314,10 @@ async function processChatInBackground(conversationId, message, conversation, an
     });
 
     // Add delay for context loading phase
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    const contextDelay = process.env.CHAT_CONTEXT_DELAY_MS || (process.env.NODE_ENV === 'test' ? 0 : 1500);
+    if (contextDelay > 0) {
+      await new Promise(resolve => setTimeout(resolve, parseInt(contextDelay)));
+    }
 
     // Generate chat response with progress callback
     const chatResult = await generateChatResponse(
@@ -316,7 +335,10 @@ async function processChatInBackground(conversationId, message, conversation, an
     );
 
     // Add delay before completion (so we can see synthesis phase)
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const completionDelay = process.env.CHAT_COMPLETION_DELAY_MS || (process.env.NODE_ENV === 'test' ? 0 : 1000);
+    if (completionDelay > 0) {
+      await new Promise(resolve => setTimeout(resolve, parseInt(completionDelay)));
+    }
 
     // Complete progress tracking
     progressManager.reportProgress('chat:complete', { 

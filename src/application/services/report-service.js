@@ -52,11 +52,12 @@ export async function generateMarkdownReport(
 }
 
 /**
- * Generate executive summary
+ * Generate both executive and narrative summaries with integrated LLM
  * @param {Array} sessions - Analyzed sessions
  * @param {Array} recommendations - Generated recommendations
  * @param {Object} enhancedAnalysis - Optional enhanced analysis
  * @param {Object} metadata - Optional metadata object for tracking
+ * @returns {Object|null} Combined error object if any LLM errors occurred, null otherwise
  */
 export async function generateExecutiveSummary(
   sessions,
@@ -64,7 +65,8 @@ export async function generateExecutiveSummary(
   enhancedAnalysis = null,
   metadata = null
 ) {
-  let summaryError = null;
+  let executiveSummaryError = null;
+  let narrativeSummaryError = null;
 
   try {
     const { generateExecutiveSummary, generateNarrativeSummary } = await import(
@@ -85,9 +87,9 @@ export async function generateExecutiveSummary(
       executiveSummaryContent = summaryResult;
     } else if (summaryResult && summaryResult.content) {
       executiveSummaryContent = summaryResult.content;
-      // Capture LLM error for potential return
+      // Capture executive summary LLM error for potential return
       if (summaryResult.error) {
-        summaryError = summaryResult.error;
+        executiveSummaryError = summaryResult.error;
       }
     } else {
       throw new Error('Invalid executive summary format received');
@@ -109,20 +111,43 @@ export async function generateExecutiveSummary(
       metadata
     );
 
-    // Handle narrative summary format
+    // Handle narrative summary format and capture errors
     let narrativeSummaryContent;
     if (typeof narrativeResult === 'string') {
       narrativeSummaryContent = narrativeResult;
     } else if (narrativeResult && narrativeResult.content) {
       narrativeSummaryContent = narrativeResult.content;
+      // Capture narrative summary LLM error for potential return
+      if (narrativeResult.error) {
+        narrativeSummaryError = narrativeResult.error;
+      }
     } else {
       narrativeSummaryContent = 'Narrative summary unavailable';
     }
 
     await saveNarrativeSummary(narrativeSummaryContent, metadata);
 
-    // Return LLM error for propagation if present
-    return summaryError;
+    // Return combined LLM errors for propagation if any are present
+    if (executiveSummaryError || narrativeSummaryError) {
+      return {
+        executiveSummaryError,
+        narrativeSummaryError,
+        // Create combined message for backward compatibility with existing error tracking
+        type: 'llm_error',
+        message: [
+          executiveSummaryError?.message,
+          narrativeSummaryError?.message
+        ]
+          .filter(Boolean)
+          .join('; '),
+        details: {
+          executive: executiveSummaryError,
+          narrative: narrativeSummaryError
+        }
+      };
+    }
+    
+    return null; // No errors
   } catch (error) {
     console.log('⚠️ Could not generate executive summary:', error.message);
     return {

@@ -50,7 +50,7 @@ export function setupSettingsRoutes(app) {
         CLAUDE_LOGS_DIR: {
           value: process.env.CLAUDE_LOGS_DIR || null,
           default: getDefaultLogsPathForPlatform(),
-          current: getLogsDir(),
+          current: getEffectiveLogsDir(),
           temporary: getTemporaryConfig('CLAUDE_LOGS_DIR') || null,
           effective: getEffectiveLogsDir(),
           validation: await getDirectoryValidationStatus(getEffectiveLogsDir()),
@@ -95,7 +95,7 @@ export function setupSettingsRoutes(app) {
       const runtime = {
         port: req.socket?.localPort || 'Unknown',
         uptime: Math.floor(process.uptime()),
-        logsDirectoryValid: await checkDirectoryExists(getLogsDir()),
+        logsDirectoryValid: await checkDirectoryExists(getEffectiveLogsDir()),
         outputDirectoryValid: await checkDirectoryExists(getOutputDir()),
         sessionsDirectoryValid: await checkDirectoryExists(getSessionsDir()),
         reportsDirectoryValid: await checkDirectoryExists(getReportsDir()),

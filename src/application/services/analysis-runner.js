@@ -209,6 +209,23 @@ export async function executeAnalysis(jobId, options, deps = {}) {
 
     console.log(`✅ Analysis job ${jobId} completed successfully`);
 
+    // Report final completion status with warning flags to progress system
+    const metadata = results.metadata;
+    const errors = metadata?.errors || [];
+    const hasWarnings = errors.some(e => e.severity === 'warning');
+    const hasCriticalErrors = errors.some(e => e.severity === 'critical');
+
+    // Final progress report with error flags
+    progressService.reportProgress('analysis', 'analysis:complete', {
+      jobId,
+      percentage: 100,
+      message: hasCriticalErrors ? 'Analysis completed with errors' : 
+                (hasWarnings ? 'Analysis completed with warnings' : 'Analysis completed successfully'),
+      details: hasWarnings || hasCriticalErrors ? `Found ${errors.length} issues - check results for details` : 'All processing completed without issues',
+      hasWarnings,
+      hasCriticalErrors
+    });
+
     // Clean up running job tracking
     runningJobs.delete(jobId);
 

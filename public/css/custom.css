@@ -238,6 +238,37 @@ footer .container {
   /* Styling handled by Bootstrap btn btn-sm btn-link classes, same as tool buttons */
 }
 
+/* Tool group styling */
+.tool-group {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 0.375rem;
+  padding: 0.75rem;
+}
+
+.tool-badges .badge {
+  margin-left: 0.25rem;
+}
+
+.tool-badges .badge:first-child {
+  margin-left: 0;
+}
+
+.tool-group-toggle {
+  color: #6c757d;
+  text-decoration: none;
+}
+
+.tool-group-toggle:hover {
+  color: #495057;
+}
+
+.tool-group-details {
+  border-top: 1px solid #e9ecef;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+}
+
 /* Progress step indicators */
 .progress-step {
   flex: 1;
