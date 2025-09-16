@@ -12,6 +12,7 @@ import {
   detectRedundantSequences,
   detectContextSwitching,
 } from '../../domain/struggle-detector.js';
+import { detectSessionPhases } from '../../domain/detectors/phase-detector.js';
 
 /**
  * Analyzes struggles and generates annotations for script format
@@ -19,15 +20,19 @@ import {
  * @returns {object} Struggle analysis with annotations
  */
 export function analyzeSessionStruggles(session) {
+  // Detect session phases for context-aware analysis
+  const phaseInfo = detectSessionPhases(session);
+  
   const struggles = {
+    phaseInfo, // Include phase info for annotations
     simpleLoops: detectSimpleLoops(session),
     advancedLoops: detectAdvancedLoops(session),
-    errorPatterns: detectErrorPatterns(session),
+    errorPatterns: detectErrorPatterns(session, phaseInfo), // Phase-aware
     stagnation: detectStagnation(session),
     longSession: detectLongSessions(session),
     readingSpirals: detectReadingSpirals(session),
     shotgunDebugging: detectShotgunDebugging(session),
-    redundantSequences: detectRedundantSequences(session),
+    redundantSequences: detectRedundantSequences(session, phaseInfo), // Phase-aware
     contextSwitching: detectContextSwitching(session),
     annotations: [],
   };

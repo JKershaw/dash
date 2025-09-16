@@ -99,6 +99,26 @@
       </div>
     </div>
 
+    <!-- Session Phase Detection -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">
+              <i class="bi bi-activity me-2"></i>
+              Session Phase Detection
+              <span id="phasesFoundBadge" class="badge bg-secondary ms-2">0 phases</span>
+            </h5>
+          </div>
+          <div class="card-body">
+            <div id="phaseResults">
+              <!-- Will be populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Struggle Pattern Detection Results -->
     <div class="row mb-4">
       <div class="col-12">
@@ -446,6 +466,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function displayAnalysisResults(data) {
     displaySessionOverview(data);
+    displayPhaseInfo(data.phaseInfo);
     displayPatternResults(data.patternResults);
     displaySuccessPatternResults(data.patternResults);
     displayStruggleClassification(data.struggleClassification);
@@ -487,6 +508,114 @@ document.addEventListener('DOMContentLoaded', function() {
         </ul>
       </div>
     `;
+  }
+
+  function displayPhaseInfo(phaseInfo) {
+    const container = document.getElementById('phaseResults');
+    const badge = document.getElementById('phasesFoundBadge');
+    
+    if (!phaseInfo || !phaseInfo.phases || phaseInfo.phases.length === 0) {
+      badge.textContent = '0 phases';
+      badge.className = 'badge bg-secondary ms-2';
+      container.innerHTML = '<div class="alert alert-info">No distinct phases detected in this session. This may be due to a short session or mixed activity patterns.</div>';
+      return;
+    }
+    
+    const phases = phaseInfo.phases;
+    badge.textContent = `${phases.length} phases`;
+    badge.className = 'badge bg-info ms-2';
+    
+    let html = `
+      <div class="mb-3">
+        <small class="text-muted">
+          <strong>Detection Method:</strong> ${phaseInfo.metadata.method || 'signal-based'} | 
+          <strong>Average Confidence:</strong> ${(phaseInfo.metadata.detectionConfidence * 100).toFixed(1)}%
+        </small>
+      </div>
+      <div class="row">
+    `;
+    
+    // Define phase colors and icons
+    const phaseConfig = {
+      exploration: { color: 'primary', icon: 'search', label: 'Exploration' },
+      implementation: { color: 'success', icon: 'code-slash', label: 'Implementation' },
+      testing: { color: 'warning', icon: 'check-circle', label: 'Testing' },
+      mixed: { color: 'secondary', icon: 'shuffle', label: 'Mixed Activity' },
+      unknown: { color: 'light', icon: 'question-circle', label: 'Unknown' }
+    };
+    
+    phases.forEach((phase, index) => {
+      const config = phaseConfig[phase.type] || phaseConfig.unknown;
+      const operationSpan = phase.endIndex - phase.startIndex + 1;
+      
+      html += `
+        <div class="col-md-6 mb-3">
+          <div class="card border-${config.color}">
+            <div class="card-header bg-${config.color} ${config.color === 'light' ? 'text-dark' : 'text-white'}">
+              <h6 class="mb-0">
+                <i class="bi bi-${config.icon} me-2"></i>
+                ${config.label} (Phase ${index + 1})
+              </h6>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-6">
+                  <small><strong>Operations:</strong> ${phase.startIndex} - ${phase.endIndex}</small><br>
+                  <small><strong>Span:</strong> ${operationSpan} operations</small>
+                </div>
+                <div class="col-6">
+                  <small><strong>Confidence:</strong> ${(phase.confidence * 100).toFixed(1)}%</small><br>
+                  <small><strong>Method:</strong> ${phase._provenance?.detectionMethod || 'signal-based'}</small>
+                </div>
+              </div>
+              ${phase.signals ? `
+                <div class="mt-2">
+                  <small class="text-muted">
+                    <strong>Signals:</strong> 
+                    ${Object.entries(phase.signals)
+                      .filter(([key, value]) => value > 0)
+                      .map(([key, value]) => `${key}: ${value}`)
+                      .join(', ') || 'No specific signals'}
+                  </small>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    
+    html += '</div>';
+    
+    // Add timeline visualization
+    html += `
+      <div class="mt-4">
+        <h6>Phase Timeline</h6>
+        <div class="progress mb-2" style="height: 30px;">
+    `;
+    
+    const totalOperations = Math.max(...phases.map(p => p.endIndex)) + 1;
+    phases.forEach((phase, index) => {
+      const config = phaseConfig[phase.type] || phaseConfig.unknown;
+      const startPercent = (phase.startIndex / totalOperations) * 100;
+      const widthPercent = ((phase.endIndex - phase.startIndex + 1) / totalOperations) * 100;
+      
+      html += `
+        <div class="progress-bar bg-${config.color}" role="progressbar" 
+             style="width: ${widthPercent}%; margin-left: ${index === 0 ? 0 : 0}%"
+             title="${config.label}: Operations ${phase.startIndex}-${phase.endIndex} (${(phase.confidence * 100).toFixed(1)}% confidence)">
+          <small>${config.label}</small>
+        </div>
+      `;
+    });
+    
+    html += `
+        </div>
+        <small class="text-muted">Timeline shows phase distribution across ${totalOperations} total operations</small>
+      </div>
+    `;
+    
+    container.innerHTML = html;
   }
 
   function displayPatternResults(patterns) {

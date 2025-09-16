@@ -15,6 +15,7 @@ import {
 import { getSessionsDir, getReportsDir } from '../config.js';
 import { getTimestampedReportPath, writeFileContent } from '../infrastructure/file-utils.js';
 import { calculateProgressPercentage, getUnifiedProgressService } from '../services/unified-progress-service.js';
+import { reportSubPhase } from '../services/progress/progress-calculator.js';
 import {
   createMetadata,
   trackPhase,
@@ -124,9 +125,18 @@ export async function processClaudeLogs(options = {}, progressCallback = null, d
 
     // Step 3: Build Knowledge Graph (part of analyzeSessions)
     trackPhase(metadata, 'buildKnowledgeGraph', 'start');
-    emitProgress('analyzeSessions:progress', {
+    
+    const fileProcessingStart = reportSubPhase('analysis', 'analyzeSessions', 'fileProcessing', {
+      currentStep: 0,
+      totalSteps: sessions.length,
       message: 'Building cross-session knowledge connections',
-      details: 'Extracting concepts, errors, and solutions for future analysis',
+      details: 'Extracting concepts, errors, and solutions for future analysis'
+    });
+    
+    emitProgress('analyzeSessions:progress', {
+      message: fileProcessingStart.message,
+      details: fileProcessingStart.details,
+      percentage: fileProcessingStart.percentage,
       current: 0,
       total: sessions.length
     });
@@ -140,13 +150,25 @@ export async function processClaudeLogs(options = {}, progressCallback = null, d
         await knowledgeGraph.addSessionConnections(session.sessionId, knowledge);
         processedConnections++;
         
-        // Emit progress every 10 sessions
+        // Emit progress every 10 sessions using declarative sub-phase system
         if (processedConnections % 10 === 0 || processedConnections === sessions.length) {
-          emitProgress('analyzeSessions:progress', {
+          const fileProgress = reportSubPhase('analysis', 'analyzeSessions', 'fileProcessing', {
+            currentStep: processedConnections,
+            totalSteps: sessions.length,
             message: 'Building knowledge connections',
-            details: `Processed ${processedConnections}/${sessions.length} sessions`,
+            details: `Processed ${processedConnections}/${sessions.length} sessions`
+          });
+          
+          emitProgress('analyzeSessions:progress', {
+            message: fileProgress.message,
+            details: fileProgress.details,
+            percentage: fileProgress.percentage,
             current: processedConnections,
-            total: sessions.length
+            total: sessions.length,
+            fileProgress: {
+              processed: processedConnections,
+              total: sessions.length
+            }
           });
         }
       }
@@ -156,18 +178,32 @@ export async function processClaudeLogs(options = {}, progressCallback = null, d
         connectionsBuilt: true
       });
       
-      emitProgress('analyzeSessions:complete', {
+      const fileProcessingComplete = reportSubPhase('analysis', 'analyzeSessions', 'fileProcessing', {
+        status: 'complete',
         message: 'Knowledge connections built',
         details: `Connected ${processedConnections} sessions for cross-session learning`
+      });
+      
+      emitProgress('analyzeSessions:complete', {
+        message: fileProcessingComplete.message,
+        details: fileProcessingComplete.details,
+        percentage: fileProcessingComplete.percentage
       });
     } catch (error) {
       console.warn('⚠️ Knowledge graph building failed:', error.message);
       trackError(metadata, error, { phase: 'buildKnowledgeGraph' });
       trackPhase(metadata, 'buildKnowledgeGraph', 'error');
       
-      emitProgress('analyzeSessions:complete', {
+      const fileProcessingError = reportSubPhase('analysis', 'analyzeSessions', 'fileProcessing', {
+        status: 'complete',
         message: 'Knowledge graph building completed with errors',
         details: 'Cross-session connections may be limited'
+      });
+      
+      emitProgress('analyzeSessions:complete', {
+        message: fileProcessingError.message,
+        details: fileProcessingError.details,
+        percentage: fileProcessingError.percentage
       });
     }
 
@@ -178,7 +214,7 @@ export async function processClaudeLogs(options = {}, progressCallback = null, d
       details: `Analyzing ${sessions.length} sessions for patterns`,
     });
 
-    const struggleRecommendations = generateRecommendations(sessions);
+    const struggleRecommendations = generateRecommendations(sessions, emitProgress);
     const recommendations = struggleRecommendations;
 
     // Save recommendations to dedicated markdown file
@@ -250,9 +286,10 @@ export async function processClaudeLogs(options = {}, progressCallback = null, d
         } else {
           // Save enhanced analysis to disk for persistence
           try {
-            // Enhanced analysis is now already in markdown format
+            // Enhanced analysis is now an object with markdown and investigationSummary
+            const markdownContent = enhancedAnalysis?.markdown || enhancedAnalysis;
             const enhancedAnalysisPath = getTimestampedReportPath('enhanced-analysis');
-            await writeFileContent(enhancedAnalysisPath, enhancedAnalysis);
+            await writeFileContent(enhancedAnalysisPath, markdownContent);
             console.log(`✅ Enhanced analysis saved to: ${enhancedAnalysisPath}`);
             trackOutputFile(metadata, 'enhanced-analysis', enhancedAnalysisPath);
           } catch (saveError) {
@@ -296,10 +333,18 @@ export async function processClaudeLogs(options = {}, progressCallback = null, d
 
       try {
         // Generate main markdown report
-        emitProgress('generateReports:progress', {
+        const markdownProgress = reportSubPhase('analysis', 'generateReports', 'markdownGeneration', {
+          status: 'in_progress',
           message: 'Creating main analysis report',
           details: 'Compiling session data and recommendations',
-          progress: 0.75,
+          currentStep: 1,
+          totalSteps: 1
+        });
+        
+        emitProgress('generateReports:progress', {
+          message: markdownProgress.message,
+          details: markdownProgress.details,
+          percentage: markdownProgress.percentage,
         });
         
         const _reportPath = await generateMarkdownReport(
@@ -311,10 +356,18 @@ export async function processClaudeLogs(options = {}, progressCallback = null, d
 
         // Generate executive summary (if requested)
         if (options.includeExecutiveSummary) {
-          emitProgress('generateReports:progress', {
+          const summaryProgress = reportSubPhase('analysis', 'generateReports', 'executiveSummary', {
+            status: 'in_progress',
             message: 'Generating executive summary',
             details: 'Creating high-level insights with AI',
-            progress: 0.85,
+            currentStep: 1,
+            totalSteps: 1
+          });
+          
+          emitProgress('generateReports:progress', {
+            message: summaryProgress.message,
+            details: summaryProgress.details,
+            percentage: summaryProgress.percentage,
           });
           
           const summaryError = await generateExecutiveSummary(
@@ -335,10 +388,18 @@ export async function processClaudeLogs(options = {}, progressCallback = null, d
         }
 
         // Final progress update
-        emitProgress('generateReports:progress', {
+        const finalizationProgress = reportSubPhase('analysis', 'generateReports', 'finalization', {
+          status: 'in_progress',
           message: 'Finalizing reports and metadata',
           details: 'Saving output files and completing analysis',
-          progress: 0.95,
+          currentStep: 1,
+          totalSteps: 1
+        });
+        
+        emitProgress('generateReports:progress', {
+          message: finalizationProgress.message,
+          details: finalizationProgress.details,
+          percentage: finalizationProgress.percentage,
         });
 
         trackPhase(metadata, 'generateReports', 'complete', { success: true });

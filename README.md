@@ -14,9 +14,11 @@ npx @jkershaw/dash
 
 ### Desktop App
 
-Download the latest version for your platform:
+**MacOS**
 
-- [macOS (Apple Silicon)](https://drive.google.com/file/d/1xe-Gbw_CzTyi43iWAVEFgZsgjiyYt4_d/view?usp=sharing) - `Dash-v1.3.2-macOS-arm64.dmg`
+Note: after downloading you will need to right-click to open as this isn't yet an "official" Mac app.
+
+- [macOS (Apple Silicon)](https://drive.google.com/file/d/1sp3BVcAKcs0puPGIta3hTt7R9RS3swEs/view?usp=sharing) - `Dash-v1.3.3-macOS-arm64.dmg`
 
 ## What Dash Does
 
@@ -111,6 +113,13 @@ For the desktop app, you may need to grant full disk access:
 
 - **Issues**: [Report bugs or request features](https://github.com/jkershaw/dash/issues)
 - **Releases**: [Download desktop apps](https://github.com/jkershaw/dash/releases)
+
+---
+
+## ⚠️ BETA SOFTWARE - EVALUATION ONLY
+
+This is unstable beta software for testing and evaluation purposes only.  
+Commercial use requires written permission. Please contact us for commercial licensing.
 
 ---
 

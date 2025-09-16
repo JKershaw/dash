@@ -11,6 +11,7 @@ import { detectShotgunDebugging } from './detectors/shotgun-debugging-detector.j
 import { detectRedundantSequences } from './detectors/redundant-sequences-detector.js';
 import { detectContextSwitching } from './detectors/context-switching-detector.js';
 import { analyzeStruggleTrend } from './detectors/struggle-trend-analyzer.js';
+import { detectSessionPhases } from './detectors/phase-detector.js';
 
 // Re-export to maintain backward compatibility
 export {
@@ -26,4 +27,5 @@ export {
   detectRedundantSequences,
   detectContextSwitching,
   analyzeStruggleTrend,
+  detectSessionPhases,
 };

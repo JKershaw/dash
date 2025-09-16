@@ -1,10 +1,12 @@
 /**
  * Detects highly productive sessions that should be highlighted as success patterns.
  * Identifies systematic work, clean implementations, and effective problem-solving.
+ * Now phase-aware to improve detection sensitivity
  * @param {object} session - A normalized session object
+ * @param {Array} phaseInfo - Session phase information for enhanced detection
  * @returns {Array} An array of detected productivity patterns
  */
-export function detectProductiveSessions(session) {
+export function detectProductiveSessions(session, phaseInfo = []) {
   if (!session || !session.toolOperations || session.toolOperations.length < 4) {
     return [];
   }

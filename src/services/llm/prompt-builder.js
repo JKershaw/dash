@@ -187,9 +187,19 @@ export function getToolDescription(toolName) {
  * Build executive summary prompt
  * @param {Object} stats - Calculated session statistics
  * @param {string} enhancedContext - Optional enhanced context from deep-dive analysis
+ * @param {Object} metadata - Optional metadata object that may contain investigationSummary
  * @returns {string} Executive summary prompt
  */
-export function buildExecutiveSummaryPrompt(stats, enhancedContext = '') {
+export function buildExecutiveSummaryPrompt(stats, enhancedContext = '', metadata = null) {
+  let investigationContext = '';
+  if (metadata?.investigationSummary) {
+    // Rich investigation insights available from agentic analysis
+    investigationContext = `\n\nInvestigation Insights:\n${metadata.investigationSummary}`;
+  } else if (enhancedContext) {
+    // Legacy enhanced context (fallback for backwards compatibility)
+    investigationContext = enhancedContext;
+  }
+
   return `IMPORTANT: Respond with text only. Do not use any tools.
 
 Generate an executive summary for collaborative development session analysis.
@@ -200,7 +210,7 @@ Data Overview:
 - ${stats.totalSessions} sessions analyzed (avg ${stats.avgSessionMinutes}min each)
 - ${stats.totalHours} hours of development time
 - ${stats.recommendationCount} improvement opportunities identified
-- Projects: ${stats.projects.join(', ')}${enhancedContext}
+- Projects: ${stats.projects.join(', ')}${investigationContext}
 
 Create a concise, professional executive summary with:
 1. Key Metrics about collaborative development performance
@@ -216,44 +226,111 @@ Format as markdown with clear sections. No emojis.`;
  * Build narrative summary prompt
  * @param {Object} stats - Calculated session statistics
  * @param {string} enhancedContext - Optional enhanced context from deep-dive analysis
+ * @param {Object} metadata - Optional metadata object that may contain investigationSummary
  * @returns {string} Narrative summary prompt
  */
-export function buildNarrativeSummaryPrompt(stats, enhancedContext = '') {
-  const contextNote = enhancedContext ? ` Key patterns: ${enhancedContext}` : '';
+export function buildNarrativeSummaryPrompt(stats, enhancedContext = '', metadata = null) {
+  let contextNote = '';
+  if (metadata?.investigationSummary) {
+    // Rich investigation insights available from agentic analysis
+    contextNote = ` Investigation insights: ${metadata.investigationSummary}`;
+  } else if (enhancedContext) {
+    // Legacy enhanced context (fallback for backwards compatibility)
+    contextNote = ` Key patterns: ${enhancedContext}`;
+  }
 
   return `IMPORTANT: Respond with text only. Do not use any tools.
 
-You're analyzing human-AI collaboration patterns to help a developer optimize their workflow with Claude Code. This analysis covers ${stats.totalSessions} collaborative development sessions across ${stats.projects.length} projects (${stats.totalHours} hours total, ${stats.avgSessionMinutes}min average).${contextNote}
+You are a workflow optimization consultant helping professionals collaborate more effectively with Claude Code. Your reader wants to understand what's working, what isn't, and exactly what to change to get better results.
+
+ANALYSIS CONTEXT: 
+This analysis covers ${stats.totalSessions} development sessions across ${stats.projects.length} projects, totaling ${stats.totalHours} hours with ${stats.avgSessionMinutes}-minute average sessions.${contextNote}
 
 CRITICAL ATTRIBUTION GUIDELINES:
-- Tool usage, command timeouts, and execution errors = Claude's actions/limitations
-- Task requests, session abandonment, and goal-setting = User's actions/decisions  
-- Focus on how the USER can work more effectively WITH Claude
+- Tool usage, command timeouts, and execution errors = Claude's actions and limitations
+- Task requests, session abandonment, and goal-setting = User's actions and decisions  
+- Focus on how the USER can collaborate more effectively WITH Claude
+- Include both workflow changes AND improved instruction/communication techniques
+- Distinguish between Claude's technical capabilities and user workflow choices
 
-Structure your analysis:
+STRUCTURE YOUR ANALYSIS:
 
-1. **Collaboration Overview** - How effectively you and Claude worked together
-2. **User Workflow Patterns** - Your approach to requesting help, structuring tasks, and managing sessions
-3. **Claude's Performance Patterns** - Where Claude succeeded vs. struggled with your requests  
-4. **Friction Points** - Collaboration breakdowns and their root causes
-5. **Workflow Optimization** - Specific changes to improve human-AI collaboration
+## Executive Summary
+Lead with the most impactful finding in 2-3 sentences. What's the single biggest opportunity for improvement? What specific change would have the highest return on effort?
 
-Writing approach:
-- Distinguish between your requests/goals vs. Claude's execution/errors
-- Focus on collaboration strategy over technical debugging
-- Recommend session management, request structuring, and environment setup
-- Suggest ways to prevent Claude's common failure patterns through better user guidance
-- Address workflow efficiency, not just code quality
+## Key Findings
+Present the top 3-4 patterns discovered, ordered by impact potential. For each finding:
+- State the insight clearly in one sentence
+- Include only the single most compelling metric (if any)
+- Focus on the pattern's impact rather than comprehensive statistics
+- Explain why this matters for productivity
 
-Examples of proper attribution:
-GOOD: "Claude hit multiple timeouts while running your test commands"  
-GOOD: "Your requests were well-structured, leading to efficient problem resolution"
-GOOD: "Claude struggled with environment errors that could be prevented with setup validation"
+Prioritize clarity over data completeness. Choose one powerful number that tells the story, not multiple statistics that prove the point.
 
-AVOID: "Your timeout errors suggest infrastructure issues" 
-AVOID: "Your tool usage shows inefficient debugging patterns"
+Use this format:
+**[Finding]**: [Explanation with supporting metric]  
+*Confidence: [Level] - [Brief reasoning]*
 
-Tone: Practical mentor helping optimize a collaborative workflow, not a technical code review.`;
+## Actionable Recommendations  
+Transform findings into specific actions, prioritized by impact and ease of implementation. Present as numbered list:
+
+**Consider both:**
+- How to change your development workflow
+- How to structure requests and provide context to Claude more effectively
+
+1. **[Primary Action]**: [What to do and why] → [Expected improvement]
+2. **[Secondary Action]**: [What to do and why] → [Expected improvement]
+
+For each recommendation, briefly explain the reasoning and what success looks like.
+
+## Implementation Guide
+Provide concrete next steps for the highest-impact recommendations:
+
+**Immediate Changes**: What to adjust in your very next Claude Code session
+**Workflow Improvements**: How to restructure your approach for better results  
+**Environment Optimization**: Setup changes that prevent common issues
+**Claude Communication**: Specific techniques for structuring requests and providing context
+
+## Advanced Insights
+For users wanting deeper analysis, include:
+- Patterns that correlate with successful vs. unsuccessful sessions
+- Environmental factors that influence collaboration effectiveness  
+- Session management strategies based on task complexity
+- Request structuring and prompting techniques that prevent common failure modes
+- How your collaboration patterns have evolved over time
+
+WRITING GUIDELINES:
+- Write conversationally but professionally, like advising a colleague
+- Use active voice and "you" language throughout
+- Keep paragraphs to 3-4 sentences maximum
+- Bold key terms sparingly (3-5 per major section)
+- Define technical concepts with everyday analogies
+- Focus on benefits and productivity gains, not just problems
+- Include specific metrics when they support the point
+- Provide concrete examples: "Instead of three debugging attempts, succeed on the first try"
+
+TONE AND APPROACH:
+- Be encouraging - highlight what's working well alongside areas for improvement
+- Make insights feel actionable, not overwhelming  
+- Explain the "why" behind recommendations to build understanding
+- Present problems as opportunities for optimization
+- Assume the reader is intelligent but may not be deeply technical
+
+QUALITY CHECK:
+Before finalizing, ensure:
+- A busy professional can identify the main recommendation within 30 seconds
+- Each suggestion includes both what to do and why it works
+- Technical concepts are explained with relatable comparisons
+- The analysis feels personal to this user's specific patterns
+- Someone could implement at least one improvement immediately after reading
+
+STATISTICAL GUIDELINES:
+- Limit to ONE key metric per major finding
+- Choose the most impactful number, not the most comprehensive
+- Present statistics as comparisons rather than raw data when possible
+- Use round numbers and ranges instead of precise percentages
+
+Remember: Your reader has invested significant time in Claude Code collaboration and wants to maximize that investment. Help them work smarter by showing exactly what changes will have the biggest impact on their productivity and success rate.`;
 }
 
 /**

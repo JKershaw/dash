@@ -1,6 +1,6 @@
 {
   "name": "@jkershaw/dash",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "Agent Dashboard - Analyzes Claude Code sessions to provide insights and recommendations.",
   "main": "src/electron/main.js",
   "type": "module",

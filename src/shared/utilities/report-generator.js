@@ -12,11 +12,13 @@ import {
   detectContextSwitching,
   analyzeStruggleTrend,
 } from '../../domain/struggle-detector.js';
+import { detectSessionPhases } from '../../domain/detectors/phase-detector.js';
 import {
   detectAiCollaborationEffectiveness,
   detectProblemSolvingSuccess,
 } from '../../domain/success-detector.js';
 import { classifyStruggle } from '../../domain/problem-classifier.js';
+import { reportSubPhase } from '../../services/progress/progress-calculator.js';
 
 /**
  * @file This file contains functions for generating reports and recommendations.
@@ -67,11 +69,12 @@ export function generateMarkdownReport(sessions, recommendations, summary = null
 /**
  * Generates recommendations based on the analysis of struggle patterns.
  * @param {Array} sessions - An array of all analyzed sessions.
+ * @param {Function} progressCallback - Optional progress callback for pattern detection
  * @returns {Array} An array of recommendation objects.
  */
-export function generateRecommendations(sessions) {
-  // First collect all individual patterns
-  const patterns = collectPatterns(sessions);
+export function generateRecommendations(sessions, progressCallback = null) {
+  // First collect all individual patterns with progress reporting
+  const patterns = collectPatterns(sessions, progressCallback);
 
   // Then aggregate and deduplicate them
   return aggregateRecommendations(patterns, sessions);
@@ -80,9 +83,35 @@ export function generateRecommendations(sessions) {
 /**
  * Collect all struggle patterns from sessions without generating individual recommendations
  * @param {Array} sessions - Array of session objects
+ * @param {Function} progressCallback - Optional progress callback for pattern detection
  * @returns {Object} Collected patterns grouped by type
  */
-function collectPatterns(sessions) {
+function collectPatterns(sessions, progressCallback = null) {
+  // Helper function to emit progress for each pattern detector
+  let detectorStep = 0;
+  const totalDetectors = 15; // Total number of pattern detectors
+  
+  const emitDetectorProgress = (detectorName) => {
+    detectorStep++;
+    if (progressCallback) {
+      const progress = reportSubPhase('analysis', 'generateRecommendations', 'patternDetection', {
+        currentStep: detectorStep,
+        totalSteps: totalDetectors,
+        message: `Analyzing ${detectorName} patterns`,
+        details: `Processing ${sessions.length} sessions (${detectorStep}/${totalDetectors} detectors)`
+      });
+      
+      progressCallback('generateRecommendations:progress', {
+        message: progress.message,
+        details: progress.details,
+        percentage: progress.percentage,
+        detector: detectorName,
+        step: detectorStep,
+        total: totalDetectors
+      });
+    }
+  };
+
   const patterns = {
     simpleLoops: [],
     advancedLoops: [],
@@ -102,7 +131,27 @@ function collectPatterns(sessions) {
     problemSolvingSuccess: [],
   };
 
+  // Report progress before starting pattern detection
+  emitDetectorProgress('simple loops');
+  emitDetectorProgress('advanced loops');
+  emitDetectorProgress('long sessions');
+  emitDetectorProgress('no progress sessions');
+  emitDetectorProgress('stagnation patterns');
+  emitDetectorProgress('compilation issues');
+  emitDetectorProgress('user struggles');
+  emitDetectorProgress('plan editing loops');
+  emitDetectorProgress('error patterns');
+  emitDetectorProgress('reading spirals');
+  emitDetectorProgress('shotgun debugging');
+  emitDetectorProgress('redundant sequences');
+  emitDetectorProgress('context switching');
+  emitDetectorProgress('AI collaboration effectiveness');
+  emitDetectorProgress('problem solving success');
+
   sessions.forEach(session => {
+    // Detect session phases for context-aware analysis
+    const phaseInfo = detectSessionPhases(session);
+    
     // Collect simple loops
     const simpleLoops = detectSimpleLoops(session);
     if (simpleLoops.length > 0) {
@@ -177,12 +226,13 @@ function collectPatterns(sessions) {
       });
     }
 
-    // Collect error patterns
-    const errorPatterns = detectErrorPatterns(session);
+    // Collect error patterns (phase-aware)
+    const errorPatterns = detectErrorPatterns(session, phaseInfo);
     if (errorPatterns.length > 0) {
       patterns.errorPatterns.push({
         session,
         patterns: errorPatterns,
+        phaseInfo, // Include phase info for debugging
       });
     }
 
@@ -208,13 +258,14 @@ function collectPatterns(sessions) {
       });
     }
 
-    // Collect redundant sequences
-    const redundantSequences = detectRedundantSequences(session);
+    // Collect redundant sequences (phase-aware)
+    const redundantSequences = detectRedundantSequences(session, phaseInfo);
     if (redundantSequences.length > 0) {
       patterns.redundantSequences.push({
         session,
         sequences: redundantSequences,
         count: redundantSequences.length,
+        phaseInfo, // Include phase info for debugging
       });
     }
 
@@ -229,21 +280,22 @@ function collectPatterns(sessions) {
       });
     }
 
-    // Collect success patterns
-    const aiCollaboration = detectAiCollaborationEffectiveness(session);
+    // Collect success patterns (phase-aware)
+    const aiCollaboration = detectAiCollaborationEffectiveness(session, phaseInfo);
     if (aiCollaboration.length > 0) {
       patterns.aiCollaborationEffectiveness.push({
         session,
         patterns: aiCollaboration,
+        phaseInfo, // Include phase info for debugging
       });
     }
 
-
-    const problemSolving = detectProblemSolvingSuccess(session);
+    const problemSolving = detectProblemSolvingSuccess(session, phaseInfo);
     if (problemSolving.length > 0) {
       patterns.problemSolvingSuccess.push({
         session,
         patterns: problemSolving,
+        phaseInfo, // Include phase info for debugging
       });
     }
   });

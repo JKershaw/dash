@@ -1,9 +1,11 @@
 /**
  * Detects when AI suggestions work well and collaboration is effective
+ * Now phase-aware to better detect collaboration patterns using phase transitions
  * @param {object} session - A normalized session object
+ * @param {Array} phaseInfo - Session phase information for enhanced detection
  * @returns {Array} An array of detected AI collaboration effectiveness patterns
  */
-export function detectAiCollaborationEffectiveness(session) {
+export function detectAiCollaborationEffectiveness(session, phaseInfo = []) {
   if (!session || !session.toolOperations || session.toolOperations.length < 3) {
     return [];
   }

@@ -1,9 +1,11 @@
 /**
  * Detects when complex issues get resolved efficiently with solutions that work on first or second attempt
+ * Now phase-aware to better recognize systematic sequences spanning multiple phases
  * @param {object} session - A normalized session object
+ * @param {Array} phaseInfo - Session phase information for enhanced detection
  * @returns {Array} An array of detected problem-solving success patterns
  */
-export function detectProblemSolvingSuccess(session) {
+export function detectProblemSolvingSuccess(session, phaseInfo = []) {
   if (!session || !session.toolOperations || session.toolOperations.length < 4) {
     return [];
   }

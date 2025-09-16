@@ -48,3 +48,16 @@ DEVELOPMENT.md
 .github/
 .gitlab-ci.yml
 .travis.yml
+
+# Generated analysis output (should never be published)
+output/
+.claude/
+test-output/
+test-output-integration/
+test-output-production/
+test-logs/
+transcripts/
+logs/
+parsed-sessions/
+analysis-report-*.md
+reports/

@@ -1,15 +1,18 @@
 /**
  * Detects redundant tool sequences (e.g., Read->Edit->Read same file).
+ * Now phase-aware to allow exploration patterns while catching genuine redundancy.
  * @param {object} session - A normalized session object.
+ * @param {Array} phaseInfo - Session phase information for context-aware detection.
  * @returns {Array} An array of detected redundant sequence patterns.
  */
-export function detectRedundantSequences(session) {
+export function detectRedundantSequences(session, phaseInfo = []) {
   if (!session || !session.toolOperations || session.toolOperations.length < 3) {
     return [];
   }
 
   const redundancies = [];
 
+  // Check 3-operation patterns (Read->Edit->Read)
   for (let i = 0; i < session.toolOperations.length - 2; i++) {
     const [op1, op2, op3] = session.toolOperations.slice(i, i + 3);
 
@@ -21,8 +24,9 @@ export function detectRedundantSequences(session) {
       op1.input?.file_path === op2.input?.file_path &&
       op2.input?.file_path === op3.input?.file_path
     ) {
-      // Context-aware filtering: Don't flag legitimate verification patterns
-      if (!isLegitimateVerification(op1, op2, op3, session.toolOperations, i)) {
+      // Phase-aware and context-aware filtering
+      if (!isLegitimateVerification(op1, op2, op3, session.toolOperations, i) &&
+          !isExplorationSequence(i, i + 2, phaseInfo)) {
         redundancies.push({
           type: 'unnecessary_re_read',
           filePattern: op1.input?.file_path,
@@ -39,6 +43,12 @@ export function detectRedundantSequences(session) {
       }
     }
 
+  }
+
+  // Check 2-operation patterns (Bash->Bash)
+  for (let i = 0; i < session.toolOperations.length - 1; i++) {
+    const [op1, op2] = session.toolOperations.slice(i, i + 2);
+
     // Bash->Bash same command pattern (common in debugging)
     // Enhanced logic based on AI feedback: don't flag git workflow commands as redundant
     if (
@@ -46,7 +56,8 @@ export function detectRedundantSequences(session) {
       op2.name === 'Bash' &&
       op1.input?.command === op2.input?.command &&
       op1.status !== 'error' && // Only flag if first command succeeded
-      !isGitWorkflowSequence(op1, op2) // Don't flag git workflow commands
+      !isGitWorkflowSequence(op1, op2) && // Don't flag git workflow commands
+      !isExplorationSequence(i, i + 1, phaseInfo) // Allow duplicate commands during exploration
     ) {
       redundancies.push({
         type: 'duplicate_bash_command',
@@ -171,4 +182,32 @@ function isGitWorkflowSequence(op1, op2) {
   }
   
   return false; // Not git workflow - allow redundancy detection
+}
+
+/**
+ * Determines if a sequence occurs during exploration phase where duplicate operations are normal.
+ * @param {number} startIndex - Start index of the sequence
+ * @param {number} endIndex - End index of the sequence
+ * @param {Array} phaseInfo - Session phase information
+ * @returns {boolean} True if sequence is part of exploration phase
+ */
+function isExplorationSequence(startIndex, endIndex, phaseInfo) {
+  if (!phaseInfo || phaseInfo.length === 0) {
+    return false; // No phase info, don't provide exploration exemption
+  }
+
+  // Check if any part of the sequence overlaps with exploration phase
+  const relevantPhases = phaseInfo.filter(phase => 
+    phase.type === 'exploration' &&
+    !(phase.endIndex < startIndex || phase.startIndex > endIndex) // Phases that overlap
+  );
+
+  if (relevantPhases.length === 0) {
+    return false; // Not in exploration phase
+  }
+
+  // Check if the exploration phase has high confidence
+  const highConfidenceExploration = relevantPhases.some(phase => phase.confidence >= 0.6);
+  
+  return highConfidenceExploration;
 }

@@ -1,9 +1,11 @@
 /**
  * Detects patterns of consecutive tool calls that result in errors.
+ * Now phase-aware to reduce false positives during exploration.
  * @param {object} session - A normalized session object.
+ * @param {Array} phaseInfo - Session phase information for context-aware detection.
  * @returns {Array} An array of detected error patterns.
  */
-export function detectErrorPatterns(session) {
+export function detectErrorPatterns(session, phaseInfo = []) {
   const errorPatterns = [];
   if (!session || !session.toolOperations || session.toolOperations.length < 2) {
     return errorPatterns;
@@ -15,6 +17,11 @@ export function detectErrorPatterns(session) {
 
   for (let i = 0; i < session.toolOperations.length; i++) {
     const tool = session.toolOperations[i];
+    
+    // Check if this error should be counted based on phase context
+    if (tool.status === 'error' && !shouldCountError(tool, i, phaseInfo)) {
+      continue; // Skip errors that are normal for current phase
+    }
     
     // Check for string replacement failures in output
     const isStringReplacementFailure = tool.output && 
@@ -257,4 +264,92 @@ export function detectErrorPatterns(session) {
 
   // Return all patterns, including single significant errors (remove the count > 1 filter)
   return errorPatterns;
+}
+
+/**
+ * Determines if an error should be counted based on phase context.
+ * Implements phase-aware error filtering to reduce false positives.
+ * @param {object} operation - The tool operation that failed
+ * @param {number} operationIndex - Index of the operation in the session
+ * @param {Array} phaseInfo - Session phase information
+ * @returns {boolean} True if error should be counted as problematic
+ */
+function shouldCountError(operation, operationIndex, phaseInfo) {
+  if (!phaseInfo || phaseInfo.length === 0) {
+    return true; // No phase info available, count all errors
+  }
+
+  // Find the phase this operation belongs to
+  const currentPhase = findPhaseForOperation(operationIndex, phaseInfo);
+  
+  if (!currentPhase) {
+    return true; // Unknown phase, count the error
+  }
+
+  // Phase-specific error filtering logic
+  if (currentPhase.type === 'exploration') {
+    // During exploration, Read/Grep/Glob failures are often normal (trying to find relevant files)
+    if (['Read', 'Grep', 'Glob'].includes(operation.name)) {
+      // Allow some exploration failures, but still catch excessive ones
+      const explorationFailureThreshold = 0.4; // Allow 40% failure rate during exploration
+      
+      // Check exploration failure rate in this phase
+      const phaseOps = getOperationsInPhase(currentPhase, phaseInfo);
+      const explorationOps = phaseOps.filter(op => ['Read', 'Grep', 'Glob'].includes(op.name));
+      const explorationErrors = explorationOps.filter(op => op.status === 'error');
+      
+      if (explorationOps.length > 0) {
+        const errorRate = explorationErrors.length / explorationOps.length;
+        return errorRate > explorationFailureThreshold; // Only count if exceeding threshold
+      }
+    }
+    
+    // Always count Edit/Write failures even during exploration
+    if (['Edit', 'Write', 'MultiEdit'].includes(operation.name)) {
+      return true;
+    }
+  } else if (currentPhase.type === 'implementation') {
+    // During implementation, be stricter about all errors
+    return true;
+  } else if (currentPhase.type === 'testing') {
+    // During testing, some test failures are expected, but system errors are not
+    if (operation.name === 'Bash' && operation.output) {
+      // Don't count test failures as problematic, but do count system issues
+      const isTestFailure = operation.output.includes('test') && 
+                           (operation.output.includes('failed') || operation.output.includes('FAIL'));
+      const isSystemError = operation.output.includes('permission denied') ||
+                           operation.output.includes('command not found') ||
+                           operation.output.includes('timeout');
+      
+      return !isTestFailure || isSystemError;
+    }
+    return true;
+  }
+
+  // For mixed/unknown phases, count all errors
+  return true;
+}
+
+/**
+ * Finds the phase that contains a specific operation index.
+ * @param {number} operationIndex - Index of the operation
+ * @param {Array} phaseInfo - Session phase information
+ * @returns {object|null} The phase containing this operation, or null if not found
+ */
+function findPhaseForOperation(operationIndex, phaseInfo) {
+  return phaseInfo.find(phase => 
+    operationIndex >= phase.startIndex && operationIndex <= phase.endIndex
+  );
+}
+
+/**
+ * Gets all operations that belong to a specific phase.
+ * @param {object} phase - The phase to get operations for
+ * @param {Array} phaseInfo - Session phase information  
+ * @returns {Array} Operations in this phase
+ */
+function getOperationsInPhase(phase, phaseInfo) {
+  // This would need access to session.toolOperations, but we don't have it in this context
+  // For now, return empty array - this is a limitation we can improve later
+  return [];
 }

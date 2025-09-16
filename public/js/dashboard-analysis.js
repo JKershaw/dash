@@ -192,69 +192,96 @@ function hideViewResultsButton() {
 }
 
 function updateProgressDisplay(status) {
-  if (!status || !status.ui) {
-    return;
-  }
+  try {
+    if (!status || !status.ui) {
+      console.warn('updateProgressDisplay: Missing status or UI data');
+      return;
+    }
 
-  const ui = status.ui;
-  const progressData = ui.progressBar || {};
-  const statusInfo = ui.status || {};
-  const timing = ui.timing || {};
-  const steps = ui.steps || [];
-  const progress = status.progress || {};
+    // Defensive extraction with fallbacks
+    const ui = safeObjectAccess(status, 'ui', {});
+    const progressData = safeObjectAccess(ui, 'progressBar', {});
+    const statusInfo = safeObjectAccess(ui, 'status', {});
+    const timing = safeObjectAccess(ui, 'timing', {});
+    const steps = safeArrayAccess(ui, 'steps', []);
+    const progress = safeObjectAccess(status, 'progress', {});
 
-  // Update progress bar and labels
-  const percentage = Math.min(100, Math.max(0, progressData.percentage || 0));
-  const message = statusInfo.message || 'Processing...';
-  let details = statusInfo.details || '';
-  const elapsed = timing.elapsedFormatted || '';
-
-  // Add tool activity (without icons) to details
-  if (ui.toolActivity) {
-    const toolActivity = ui.toolActivity;
-    let toolInfo = '';
+    // Validate and clamp percentage with enhanced bounds checking
+    const rawPercentage = safeNumberAccess(progressData, 'percentage', 0);
+    const percentage = validateProgressPercentage(rawPercentage);
     
-    if (toolActivity.originalStep === 'tool:start') {
-      toolInfo = toolActivity.message || `Using ${toolActivity.toolName || 'unknown tool'}`;
-    } else if (toolActivity.originalStep === 'llm:round') {
-      toolInfo = `Round ${toolActivity.round}: Processing ${toolActivity.toolCount} tools`;
-    } else if (toolActivity.message) {
-      toolInfo = toolActivity.message;
+    // Extract messages with enhanced fallbacks
+    const message = safeStringAccess(statusInfo, 'message', 'Processing...');
+    let details = safeStringAccess(statusInfo, 'details', '');
+    const elapsed = safeStringAccess(timing, 'elapsedFormatted', '');
+
+    // Phase-aware detail building - prioritize most relevant info for current phase
+    let phaseSpecificDetails = [];
+    
+    // Enhanced tool activity handling with error resistance (highest priority for LLM phases)
+    try {
+      const toolActivity = ui.toolActivity;
+      if (toolActivity && typeof toolActivity === 'object') {
+        const toolInfo = extractToolActivityInfo(toolActivity);
+        if (toolInfo) {
+          phaseSpecificDetails.push(toolInfo);
+        }
+      }
+    } catch (toolError) {
+      console.warn('updateProgressDisplay: Tool activity parsing failed', toolError);
     }
     
-    if (toolInfo) {
-      details = details ? `${details} - ${toolInfo}` : toolInfo;
+    // Enhanced file processing info (only show during analyzeSessions phase)
+    try {
+      const fileInfo = getFileProcessingInfo(progress);
+      if (fileInfo && (percentage < 11 || message.toLowerCase().includes('session'))) {
+        phaseSpecificDetails.push(fileInfo);
+      }
+    } catch (fileError) {
+      console.warn('updateProgressDisplay: File processing info failed', fileError);
     }
-  }
-  
-  // Add file processing info
-  if (progress.filesProcessed && progress.totalFiles && progress.totalFiles > 0) {
-    const fileInfo = `Processing file ${progress.filesProcessed} of ${progress.totalFiles}`;
-    details = details ? `${details} - ${fileInfo}` : fileInfo;
-  }
 
-  // Append elapsed time to final details
-  const detailsWithTime = details && elapsed ? `${details} (${elapsed})` : details || (elapsed ? `(${elapsed})` : '');
+    // Enhanced sub-phase progress info (lower priority - only if no other details)
+    try {
+      if (phaseSpecificDetails.length === 0) {
+        const subPhaseInfo = getSubPhaseProgressInfo(progress);
+        if (subPhaseInfo) {
+          phaseSpecificDetails.push(subPhaseInfo);
+        }
+      }
+    } catch (subPhaseError) {
+      console.warn('updateProgressDisplay: Sub-phase info failed', subPhaseError);
+    }
 
-  updateProgressElements(percentage, message, detailsWithTime);
+    // Combine base details with phase-specific details
+    if (details && phaseSpecificDetails.length > 0) {
+      details = `${details} - ${phaseSpecificDetails[0]}`; // Only use most relevant detail
+    } else if (phaseSpecificDetails.length > 0) {
+      details = phaseSpecificDetails[0]; // Use most relevant detail
+    }
 
-  // Update enhanced progress elements
-  updateEnhancedProgress(steps, details, progress, ui.toolActivity);
+    // Append elapsed time to final details
+    const detailsWithTime = combineDetailsWithTime(details, elapsed);
 
-  // Update progress bar color based on status
-  const progressBarElement = document.getElementById('progressBar');
-  if (progressBarElement) {
-    // Reset classes
-    progressBarElement.classList.remove('bg-success', 'bg-danger', 'bg-warning');
+    updateProgressElements(percentage, message, detailsWithTime);
 
-    if (progressData.isError) {
-      progressBarElement.classList.add('bg-danger');
-    } else if (progressData.hasLLMError) {
-      progressBarElement.classList.add('bg-warning'); // Warning for completed-with-errors
-    } else if (progressData.isComplete) {
-      progressBarElement.classList.add('bg-success');
-    } else {
-      // Keep default blue color for in-progress
+    // Update enhanced progress elements with error handling
+    try {
+      updateEnhancedProgress(steps, details, progress, ui.toolActivity);
+    } catch (enhancedError) {
+      console.warn('updateProgressDisplay: Enhanced progress update failed', enhancedError);
+    }
+
+    // Update progress bar color based on status with enhanced error detection
+    updateProgressBarStyling(progressData);
+
+  } catch (error) {
+    console.error('updateProgressDisplay: Critical error in progress display', error);
+    // Fallback to basic progress display
+    try {
+      updateProgressElements(0, 'Progress display error - retrying...', 'Please refresh if this persists');
+    } catch (fallbackError) {
+      console.error('updateProgressDisplay: Even fallback failed', fallbackError);
     }
   }
 }
@@ -418,6 +445,194 @@ function handleAnalysisError(error) {
     btn.disabled = false;
     btn.innerHTML = originalText;
   }, 3000);
+}
+
+// Enhanced resilience helper functions for declarative progress system
+function safeObjectAccess(obj, key, fallback = {}) {
+  try {
+    return (obj && typeof obj === 'object' && obj[key] && typeof obj[key] === 'object') ? obj[key] : fallback;
+  } catch (error) {
+    console.warn(`safeObjectAccess: Failed to access ${key}`, error);
+    return fallback;
+  }
+}
+
+function safeArrayAccess(obj, key, fallback = []) {
+  try {
+    return (obj && typeof obj === 'object' && Array.isArray(obj[key])) ? obj[key] : fallback;
+  } catch (error) {
+    console.warn(`safeArrayAccess: Failed to access ${key}`, error);
+    return fallback;
+  }
+}
+
+function safeNumberAccess(obj, key, fallback = 0) {
+  try {
+    const value = obj && typeof obj === 'object' ? obj[key] : fallback;
+    return typeof value === 'number' && !isNaN(value) ? value : fallback;
+  } catch (error) {
+    console.warn(`safeNumberAccess: Failed to access ${key}`, error);
+    return fallback;
+  }
+}
+
+function safeStringAccess(obj, key, fallback = '') {
+  try {
+    const value = obj && typeof obj === 'object' ? obj[key] : fallback;
+    return typeof value === 'string' ? value : fallback;
+  } catch (error) {
+    console.warn(`safeStringAccess: Failed to access ${key}`, error);
+    return fallback;
+  }
+}
+
+function validateProgressPercentage(percentage) {
+  // Enhanced percentage validation with known phase bounds
+  if (typeof percentage !== 'number' || isNaN(percentage)) {
+    console.warn('validateProgressPercentage: Invalid percentage type', percentage);
+    return 0;
+  }
+  
+  const clamped = Math.min(100, Math.max(0, percentage));
+  
+  // Warn about suspicious percentage jumps (could indicate progress calculation issues)
+  if (Math.abs(percentage - clamped) > 0.1) {
+    console.warn('validateProgressPercentage: Percentage clamped', { original: percentage, clamped });
+  }
+  
+  return clamped;
+}
+
+function extractToolActivityInfo(toolActivity) {
+  try {
+    if (!toolActivity || typeof toolActivity !== 'object') return '';
+    
+    const originalStep = safeStringAccess(toolActivity, 'originalStep', '');
+    const message = safeStringAccess(toolActivity, 'message', '');
+    const toolName = safeStringAccess(toolActivity, 'toolName', '');
+    const round = safeNumberAccess(toolActivity, 'round', 0);
+    const toolCount = safeNumberAccess(toolActivity, 'toolCount', 0);
+    
+    if (originalStep === 'tool:start') {
+      return message || `Using ${toolName || 'unknown tool'}`;
+    } else if (originalStep === 'llm:round') {
+      return `Round ${round}: Processing ${toolCount} tools`;
+    } else if (message) {
+      return message;
+    }
+    
+    return '';
+  } catch (error) {
+    console.warn('extractToolActivityInfo: Failed to extract tool activity', error);
+    return '';
+  }
+}
+
+function getFileProcessingInfo(progress) {
+  try {
+    // Handle existing file progress format
+    const filesProcessed = safeNumberAccess(progress, 'filesProcessed', 0);
+    const totalFiles = safeNumberAccess(progress, 'totalFiles', 0);
+    
+    if (filesProcessed > 0 && totalFiles > 0) {
+      return `Processing file ${filesProcessed} of ${totalFiles}`;
+    }
+    
+    // Handle new sub-phase file progress format
+    const fileProgress = safeObjectAccess(progress, 'fileProgress', null);
+    if (fileProgress) {
+      const processed = safeNumberAccess(fileProgress, 'processed', 0);
+      const total = safeNumberAccess(fileProgress, 'total', 0);
+      
+      if (processed >= 0 && total > 0) {
+        return `File processing: ${processed}/${total} sessions`;
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.warn('getFileProcessingInfo: Failed to get file processing info', error);
+    return null;
+  }
+}
+
+// Keep old function for backward compatibility
+function addFileProcessingInfo(progress, details) {
+  const fileInfo = getFileProcessingInfo(progress);
+  return fileInfo ? (details ? `${details} - ${fileInfo}` : fileInfo) : details;
+}
+
+function getSubPhaseProgressInfo(progress) {
+  try {
+    // Handle new sub-phase progress information from declarative system
+    const currentStep = safeNumberAccess(progress, 'currentStep', 0);
+    const totalSteps = safeNumberAccess(progress, 'totalSteps', 0);
+    const subPhase = safeStringAccess(progress, 'subPhase', '');
+    
+    if (currentStep > 0 && totalSteps > 0 && subPhase) {
+      return `${subPhase}: step ${currentStep}/${totalSteps}`;
+    }
+    
+    return null;
+  } catch (error) {
+    console.warn('getSubPhaseProgressInfo: Failed to get sub-phase info', error);
+    return null;
+  }
+}
+
+// Keep old function for backward compatibility
+function addSubPhaseProgressInfo(progress, details) {
+  const subPhaseInfo = getSubPhaseProgressInfo(progress);
+  return subPhaseInfo ? (details ? `${details} - ${subPhaseInfo}` : subPhaseInfo) : details;
+}
+
+function combineDetailsWithTime(details, elapsed) {
+  try {
+    if (!details && !elapsed) return '';
+    if (!details) return elapsed ? `(${elapsed})` : '';
+    if (!elapsed) return details;
+    return `${details} (${elapsed})`;
+  } catch (error) {
+    console.warn('combineDetailsWithTime: Failed to combine details', error);
+    return details || '';
+  }
+}
+
+function updateProgressBarStyling(progressData) {
+  try {
+    const progressBarElement = document.getElementById('progressBar');
+    if (!progressBarElement) {
+      console.warn('updateProgressBarStyling: Progress bar element not found');
+      return;
+    }
+
+    // Reset classes safely
+    const classesToReset = ['bg-success', 'bg-danger', 'bg-warning'];
+    classesToReset.forEach(cls => {
+      try {
+        progressBarElement.classList.remove(cls);
+      } catch (error) {
+        console.warn(`updateProgressBarStyling: Failed to remove class ${cls}`, error);
+      }
+    });
+
+    // Apply new styling based on status
+    const isError = progressData && progressData.isError;
+    const hasLLMError = progressData && progressData.hasLLMError;
+    const isComplete = progressData && progressData.isComplete;
+    
+    if (isError) {
+      progressBarElement.classList.add('bg-danger');
+    } else if (hasLLMError) {
+      progressBarElement.classList.add('bg-warning');
+    } else if (isComplete) {
+      progressBarElement.classList.add('bg-success');
+    }
+    // Default blue color maintained for in-progress
+    
+  } catch (error) {
+    console.error('updateProgressBarStyling: Critical styling error', error);
+  }
 }
 
 // Cleanup polling interval on page unload to prevent memory leaks

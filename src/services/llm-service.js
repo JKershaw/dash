@@ -8,6 +8,8 @@ import { analysisTools, handleToolCall } from './analysis-tools.js';
 import { isTest, getApiKey, getModel } from '../config.js';
 import { trackLLMCall } from './metadata-collector.js';
 import { loadBasicSessionData } from './analysis-data.js';
+import { reportSubPhase } from './progress/progress-calculator.js';
+import { getSubPhase } from './progress/progress-config.js';
 
 // Import extracted modules
 import { getModelMaxTokens } from './llm/model-config.js';
@@ -67,7 +69,9 @@ async function callAnthropicWithTools(prompt, sessions, useTools = true, progres
 
   // Handle tool calling loop
   let toolRounds = 0;
-  const maxToolRounds = 25; // Increased for thorough analysis of hundreds of sessions
+  // Get max rounds from config instead of hardcoding
+  const toolConfig = getSubPhase('analysis', 'enhancedAnalysis', 'agenticRounds');
+  const maxToolRounds = toolConfig?.maxRounds || 25; // Fallback to 25 if config unavailable
   let totalToolCalls = 0;
 
   while (
@@ -81,12 +85,21 @@ async function callAnthropicWithTools(prompt, sessions, useTools = true, progres
 
     console.log(`🔍 Round ${toolRounds}: Processing ${toolCalls.length} tool call(s)...`);
 
-    // Report tool round progress
+    // Report tool round progress using declarative config
     if (progressCallback) {
+      const roundProgress = reportSubPhase('analysis', 'enhancedAnalysis', 'agenticRounds', {
+        currentStep: toolRounds,
+        totalSteps: toolConfig?.estimatedSteps || 6,
+        message: `Round ${toolRounds}: Using ${toolCalls.length} tool(s)...`,
+        toolActivity: { toolName: toolCalls[0]?.name, round: toolRounds }
+      });
+      
       progressCallback('llm:round', {
         round: toolRounds,
         toolCount: toolCalls.length,
-        message: `Round ${toolRounds}: Using ${toolCalls.length} tool(s)...`,
+        message: roundProgress.message,
+        percentage: roundProgress.percentage,
+        toolActivity: roundProgress.toolActivity
       });
     }
 
@@ -177,9 +190,16 @@ export async function generateEnhancedAnalysis(
 
   // Emit progress
   if (progressCallback) {
-    progressCallback('enhancedAnalysis:start', {
+    const initProgress = reportSubPhase('analysis', 'enhancedAnalysis', 'initialization', {
+      status: 'in_progress',
       message: 'Starting enhanced AI analysis',
-      progress: 0,
+      currentStep: 1,
+      totalSteps: 1
+    });
+    
+    progressCallback('enhancedAnalysis:start', {
+      message: initProgress.message,
+      percentage: initProgress.percentage,
     });
   }
 
@@ -189,15 +209,25 @@ export async function generateEnhancedAnalysis(
 
   // Always enable deep dive mode unless explicitly disabled
   const shouldDeepDive = deepDive !== false;
+  
+  // Get agentic config for progress calculation
+  const agenticConfig = getSubPhase('analysis', 'enhancedAnalysis', 'agenticRounds');
 
   const startTime = Date.now();
   try {
     if (progressCallback) {
-      progressCallback('enhancedAnalysis:progress', {
+      const deepDiveProgress = reportSubPhase('analysis', 'enhancedAnalysis', 'agenticRounds', {
+        status: 'in_progress',
         message: shouldDeepDive
           ? 'Starting deep dive analysis with tools'
           : 'Starting standard analysis',
-        progress: 0.2,
+        currentStep: 1,
+        totalSteps: agenticConfig?.estimatedSteps || 6
+      });
+      
+      progressCallback('enhancedAnalysis:progress', {
+        message: deepDiveProgress.message,
+        percentage: deepDiveProgress.percentage,
       });
     }
 
@@ -258,15 +288,35 @@ export async function generateEnhancedAnalysis(
       });
     }
 
+    // Generate investigation reflection if agentic analysis occurred
+    if (shouldDeepDive && toolRounds > 0) {
+      // Agentic analysis occurred - investigation reflection is MANDATORY
+      const investigationSummary = await generateInvestigationReflection(
+        client, messages, toolRounds, totalToolCalls, model, metadata
+      );
+      
+      // Store investigation summary in metadata for summary generation
+      if (metadata && investigationSummary) {
+        metadata.investigationSummary = investigationSummary;
+      }
+    }
+
     // Self-reflection debug mode (if enabled)
     if (process.env.DEBUG_SELF_REFLECTION === 'true' && shouldDeepDive && toolRounds > 0) {
       await _runSelfReflection(client, messages, toolRounds, totalToolCalls, sessions, model);
     }
 
     if (progressCallback) {
-      progressCallback('enhancedAnalysis:complete', {
+      const synthesisProgress = reportSubPhase('analysis', 'enhancedAnalysis', 'synthesis', {
+        status: 'complete',
         message: 'Analysis complete',
-        progress: 1.0,
+        currentStep: 1,
+        totalSteps: 1
+      });
+      
+      progressCallback('enhancedAnalysis:complete', {
+        message: synthesisProgress.message,
+        percentage: synthesisProgress.percentage,
       });
     }
 
@@ -353,13 +403,93 @@ export async function generateEnhancedAnalysis(
     console.log('❌ Using fallback analysis');
     const fallback = await generateSyntheticEnhancedAnalysis(sessionAnalysis);
     return {
-      ...fallback,
+      content: fallback,
       error: {
         type: 'llm_error',
         message: parseUserFriendlyMessage(error, 'Enhanced AI analysis'),
         details: error.message,
       },
     };
+  }
+}
+
+/**
+ * Generate investigation reflection after agentic analysis
+ * @param {Object} client - Anthropic client
+ * @param {Array} messages - Conversation history with tool usage
+ * @param {number} toolRounds - Number of tool calling rounds completed
+ * @param {number} totalToolCalls - Total number of tool calls made
+ * @param {string} model - Model being used
+ * @param {Object} metadata - Optional metadata object for tracking
+ * @returns {Promise<string|null>} Investigation reflection text or null if failed
+ */
+async function generateInvestigationReflection(client, messages, toolRounds, totalToolCalls, model, metadata) {
+  try {
+    console.log('🔍 Generating investigation reflection to capture contextual intelligence...');
+
+    // Create investigation reflection prompt
+    const reflectionPrompt = `You have completed a comprehensive investigation of Claude Code session data from one developer's workflow. This reflection captures the key insights and evidence you discovered for user-facing summaries.
+
+## Investigation Summary Request
+
+Provide a comprehensive summary (max 2500 characters) that captures:
+
+1. **Key Patterns Discovered**: Specific issues and behaviors identified with quantified impact
+2. **Evidence Examples**: Concrete session quotes, error messages, and behaviors that illustrate patterns
+3. **Contextual Insights**: Important discoveries that emerged from analyzing actual session conversations
+4. **Quantified Findings**: Percentages, frequencies, and measurable impacts of identified patterns
+5. **Critical Correlations**: Connections between behavior and session outcomes
+
+Focus on actionable insights that help the developer understand their workflow patterns and improve their experience with Claude Code.
+
+**Format**: Write as a dense, evidence-rich summary for user-facing reports. Include specific examples, percentages, and concrete evidence that users can act upon.
+
+## Response Requirements:
+- Maximum 2500 characters
+- Include specific session examples and measurable data
+- Focus on patterns users can recognize and address
+- Provide quantified evidence (percentages, frequencies, durations)
+- Keep content user-valuable, not process-focused`;
+
+    // Make the investigation reflection call with full conversation context
+    const reflectionMessages = [
+      ...messages, // Include full conversation history with all tool calls and results
+      {
+        role: 'user',
+        content: reflectionPrompt,
+      },
+    ];
+
+    const reflectionConfig = {
+      model: model,
+      max_tokens: 1500, // Sufficient for 2500 character output
+      messages: reflectionMessages,
+    };
+
+    const reflectionResponse = await client.messages.create(reflectionConfig);
+    const text = reflectionResponse.content[0]?.text || '';
+
+    // Track the LLM call in metadata
+    const duration = Date.now();
+    if (metadata) {
+      trackLLMCall(metadata, {
+        type: 'investigation-reflection',
+        strategy: 'post-analysis',
+        provider: 'anthropic-api',
+        model: model,
+        inputTokens: reflectionResponse.usage?.input_tokens || 0,
+        outputTokens: reflectionResponse.usage?.output_tokens || 0,
+        totalTokens: (reflectionResponse.usage?.input_tokens || 0) + (reflectionResponse.usage?.output_tokens || 0),
+        duration,
+        success: true,
+      });
+    }
+
+    console.log(`✅ Investigation reflection generated: ${text.length} characters`);
+    return text || null;
+  } catch (error) {
+    console.warn('⚠️ Investigation reflection failed - summaries will use limited context:', error.message);
+    return null;
   }
 }
 
@@ -678,7 +808,7 @@ export async function generateExecutiveSummary(
 
     const stats = calculateStats(sessions, recommendations);
 
-    // Build context from enhanced analysis if available
+    // Build context from enhanced analysis if available (legacy behavior)
     let enhancedContext = '';
     if (enhancedAnalysis && typeof enhancedAnalysis === 'string') {
       // Extract key sections from markdown enhanced analysis
@@ -698,7 +828,7 @@ export async function generateExecutiveSummary(
       }
     }
 
-    const prompt = buildExecutiveSummaryPrompt(stats, enhancedContext);
+    const prompt = buildExecutiveSummaryPrompt(stats, enhancedContext, metadata);
 
     // Ensure prompt can be JSON serialized (fallback for malformed Unicode)
     let finalPrompt = prompt;
@@ -849,7 +979,7 @@ export async function generateNarrativeSummary(
 
     const stats = calculateStats(sessions, recommendations);
 
-    // Build enhanced context from deep-dive analysis
+    // Build enhanced context from deep-dive analysis (legacy behavior)
     let enhancedContext = '';
     if (enhancedAnalysis && typeof enhancedAnalysis === 'string') {
       // Extract detailed sections from markdown enhanced analysis
@@ -868,7 +998,8 @@ export async function generateNarrativeSummary(
         enhancedContext = `\n\nDetailed Investigation Findings:\n${sections}\n\nUse these specific findings to inform your analysis and provide concrete examples.`;
       }
     }
-    const prompt = buildNarrativeSummaryPrompt(stats, enhancedContext);
+
+    const prompt = buildNarrativeSummaryPrompt(stats, enhancedContext, metadata);
 
     // Ensure prompt can be JSON serialized (fallback for malformed Unicode)
     let finalPrompt = prompt;

@@ -17,6 +17,7 @@ import {
   detectContextSwitching,
   analyzeStruggleTrend,
 } from '../../../domain/struggle-detector.js';
+import { detectSessionPhases } from '../../../domain/detectors/phase-detector.js';
 import { detectAiCollaborationEffectiveness } from '../../../domain/detectors/ai-collaboration-effectiveness-detector.js';
 import { detectProblemSolvingSuccess } from '../../../domain/detectors/problem-solving-success-detector.js';
 import { detectProductiveSessions } from '../../../domain/detectors/productive-session-detector.js';
@@ -70,18 +71,22 @@ export function setupDebugRoutes(app) {
 
       console.log(`🔍 Debug analysis for session ${id}: ${session.projectName}`);
 
-      // Run all pattern detectors individually
+      // Detect session phases for context-aware analysis
+      const phaseInfo = detectSessionPhases(session);
+      console.log(`📊 Detected ${phaseInfo.length} session phases:`, phaseInfo.map(p => `${p.type}(${p.confidence.toFixed(2)})`).join(', '));
+
+      // Run all pattern detectors individually (phase-aware where supported)
       const patternResults = {
         simpleLoops: detectSimpleLoops(session),
         advancedLoops: detectAdvancedLoops(session),
         longSessions: detectLongSessions(session),
-        errorPatterns: detectErrorPatterns(session),
+        errorPatterns: detectErrorPatterns(session, phaseInfo), // Phase-aware
         noProgressSessions: detectNoProgressSessions(session),
         stagnation: detectStagnation(session),
         planEditingLoops: detectPlanEditingLoops(session),
         readingSpirals: detectReadingSpirals(session),
         shotgunDebugging: detectShotgunDebugging(session),
-        redundantSequences: detectRedundantSequences(session),
+        redundantSequences: detectRedundantSequences(session, phaseInfo), // Phase-aware
         contextSwitching: detectContextSwitching(session),
         aiCollaborationEffectiveness: detectAiCollaborationEffectiveness(session),
         problemSolvingSuccess: detectProblemSolvingSuccess(session),
@@ -153,6 +158,14 @@ export function setupDebugRoutes(app) {
           analysisVersion: '1.0.0',
         },
         sessionMetrics,
+        phaseInfo: {
+          phases: phaseInfo,
+          metadata: { 
+            detectionConfidence: phaseInfo.length > 0 ? phaseInfo.reduce((sum, p) => sum + p.confidence, 0) / phaseInfo.length : 0,
+            method: 'signal-based',
+            totalPhases: phaseInfo.length
+          }
+        },
         patternResults: patternSummary,
         struggleClassification: {
           results: struggleClassification,
@@ -270,18 +283,21 @@ export function setupDebugRoutes(app) {
 
       console.log(`🤖 AI reviewing pattern detection for session ${id}`);
 
-      // Get current pattern detection results
+      // Detect session phases for context-aware analysis
+      const phaseInfo = detectSessionPhases(session);
+
+      // Get current pattern detection results (phase-aware where supported)
       const patternResults = {
         simpleLoops: detectSimpleLoops(session),
         advancedLoops: detectAdvancedLoops(session),
         longSessions: detectLongSessions(session),
-        errorPatterns: detectErrorPatterns(session),
+        errorPatterns: detectErrorPatterns(session, phaseInfo), // Phase-aware
         noProgressSessions: detectNoProgressSessions(session),
         stagnation: detectStagnation(session),
         planEditingLoops: detectPlanEditingLoops(session),
         readingSpirals: detectReadingSpirals(session),
         shotgunDebugging: detectShotgunDebugging(session),
-        redundantSequences: detectRedundantSequences(session),
+        redundantSequences: detectRedundantSequences(session, phaseInfo), // Phase-aware
         contextSwitching: detectContextSwitching(session),
         aiCollaborationEffectiveness: detectAiCollaborationEffectiveness(session),
         problemSolvingSuccess: detectProblemSolvingSuccess(session),
