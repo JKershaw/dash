@@ -19,6 +19,7 @@ ${bold('COMMANDS')}
   ${boldCyan('run')}                  Run a coding task against a Dash Build server
   ${boldCyan('ping')}                 Test connectivity to a remote server
   ${boldCyan('login')}                Authenticate with a Dash Build server
+  ${boldCyan('guide')}                Print the agent integration guide
   ${boldCyan('help')}                 Show this help text
 
 ${bold('RUN OPTIONS')}
