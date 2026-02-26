@@ -1,6 +1,7 @@
 /**
- * Dash Build CLI - Main entry point
+ * Dash CLI - Main entry point
  *
+ * Cloud-only CLI that connects to a hosted Dash Build server.
  * Parses arguments and dispatches to the appropriate command handler.
  */
 
@@ -18,7 +19,7 @@ const _orig = (process.emitWarning as any).bind(process);
 };
 
 import { parseArgs } from './args.js';
-import { dim, boldCyan, boldRed } from './colors.js';
+import { dim, boldCyan } from './colors.js';
 import { logError } from './display.js';
 
 // Auto-load .env from cwd if it exists (only sets vars not already in env)
@@ -39,36 +40,16 @@ try {
   // No .env file — that's fine, env vars may be set directly
 }
 import { printHelp } from './commands/help.js';
-import { commandServe } from './commands/serve.js';
 import { commandRun } from './commands/run.js';
-import { commandStatus } from './commands/status.js';
-import { commandTasks } from './commands/tasks.js';
 import { commandLogin } from './commands/login.js';
-import { commandGuide } from './commands/guide.js';
 import { commandPing } from './commands/ping.js';
 
 async function main(): Promise<void> {
   const { command, flags, positionalTask } = parseArgs(process.argv);
 
   switch (command) {
-    case 'serve':
-      await commandServe();
-      break;
-
     case 'run':
       await commandRun(flags, positionalTask);
-      break;
-
-    case 'status':
-      await commandStatus(flags);
-      break;
-
-    case 'tasks':
-      await commandTasks();
-      break;
-
-    case 'guide':
-      commandGuide();
       break;
 
     case 'ping':
@@ -87,7 +68,7 @@ async function main(): Promise<void> {
 
     default:
       logError(`Unknown command: "${command}"`);
-      console.log(`\n  Run ${boldCyan('dash-build help')} for usage information.\n`);
+      console.log(`\n  Run ${boldCyan('dash help')} for usage information.\n`);
       process.exit(1);
   }
 }
