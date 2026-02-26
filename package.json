@@ -11,7 +11,8 @@
   ],
   "scripts": {
     "build": "tsc",
-    "test": "tsx --test 'test/**/*.test.ts'",
+    "test": "tsx --test test/cloudRun.test.ts",
+    "test:live": "tsx --test test/live.test.ts",
     "prepublishOnly": "npm run build && npm test"
   },
   "engines": {
