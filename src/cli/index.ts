@@ -43,6 +43,7 @@ import { printHelp } from './commands/help.js';
 import { commandRun } from './commands/run.js';
 import { commandLogin } from './commands/login.js';
 import { commandPing } from './commands/ping.js';
+import { commandGuide } from './commands/guide.js';
 
 async function main(): Promise<void> {
   const { command, flags, positionalTask } = parseArgs(process.argv);
@@ -58,6 +59,10 @@ async function main(): Promise<void> {
 
     case 'login':
       await commandLogin(flags);
+      break;
+
+    case 'guide':
+      commandGuide();
       break;
 
     case 'help':
