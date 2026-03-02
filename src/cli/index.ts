@@ -21,6 +21,7 @@ const _orig = (process.emitWarning as any).bind(process);
 import { parseArgs } from './args.js';
 import { dim, boldCyan } from './colors.js';
 import { logError } from './display.js';
+import { checkForUpdate } from './updateCheck.js';
 
 // Auto-load .env from cwd if it exists (only sets vars not already in env)
 try {
@@ -46,6 +47,8 @@ import { commandPing } from './commands/ping.js';
 import { commandGuide } from './commands/guide.js';
 
 async function main(): Promise<void> {
+  checkForUpdate();
+
   const { command, flags, positionalTask } = parseArgs(process.argv);
 
   switch (command) {
