@@ -95,6 +95,12 @@ export interface TransportServerOptions {
 export interface TransportServer {
   request(toolRequest: ToolRequest): Promise<ToolResponse>;
   broadcast(message: ProtocolMessage): void;
+  /** Send a message to a single client. No-op if client not found. */
+  sendTo(clientId: string, message: ProtocolMessage): void;
+  /** Send a tool request to a specific client and wait for response. Throws if client not found. */
+  requestTo(clientId: string, toolRequest: ToolRequest): Promise<ToolResponse>;
+  /** Check whether a client is currently connected on this transport. */
+  hasClient(clientId: string): boolean;
   onMessage(handler: (message: ProtocolMessage, clientId: string) => void): void;
   onConnection(handler: (clientId: string) => void): void;
   onDisconnection(handler: (clientId: string) => void): void;
