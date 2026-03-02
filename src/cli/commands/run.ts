@@ -279,28 +279,38 @@ export async function commandRun(flags: Record<string, string>, positionalTask?:
   });
 
   // CLI-side worktree cleanup: merge changes back and remove worktree.
-  // The server cannot reliably do this via RPC because the transport closes
-  // as soon as task_status is received (race condition).
+  // The server may have already done this via RPC before we get here,
+  // so check if the branch still exists before attempting merge.
   if (effectiveRepo !== resolvedRepo) {
     const worktreeBranch = `dash-wt-${preGeneratedId}`;
     if (result.status === 'complete') {
+      const { execSync } = await import('node:child_process');
+      let branchExists = false;
       try {
-        const mergeResult = await gitOps.mergeWorktreeBranch(worktreeBranch, resolvedRepo);
-        if (mergeResult.success) {
-          log(`Merged worktree branch ${dim(worktreeBranch)} into main`);
-        } else {
-          logError(`Merge conflict: ${mergeResult.error}`);
-          log(`Branch ${cyan(worktreeBranch)} preserved for manual resolution.`);
+        execSync(`git rev-parse --verify '${worktreeBranch}'`, { cwd: resolvedRepo, stdio: 'ignore' });
+        branchExists = true;
+      } catch { /* branch already merged/deleted by server */ }
+
+      if (branchExists) {
+        try {
+          const mergeResult = await gitOps.mergeWorktreeBranch(worktreeBranch, resolvedRepo);
+          if (mergeResult.success) {
+            log(`Merged worktree branch ${dim(worktreeBranch)} into main`);
+          } else {
+            logError(`Merge conflict: ${mergeResult.error}`);
+            log(`Branch ${cyan(worktreeBranch)} preserved for manual resolution.`);
+          }
+        } catch (err) {
+          logError(`Worktree merge failed: ${err instanceof Error ? err.message : String(err)}`);
         }
-      } catch (err) {
-        logError(`Worktree merge failed: ${err instanceof Error ? err.message : String(err)}`);
+      } else {
+        log(`Worktree branch already merged by server`);
       }
     }
     try {
       await gitOps.removeWorktree(effectiveRepo, resolvedRepo);
-      log(`Worktree cleaned up`);
     } catch {
-      // Best-effort cleanup
+      // Already cleaned up by server — ignore
     }
   }
 
