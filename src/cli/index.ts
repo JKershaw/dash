@@ -1,7 +1,6 @@
 /**
- * Dash CLI - Main entry point
+ * CLI - Main entry point
  *
- * Cloud-only CLI that connects to a hosted Dash Build server.
  * Parses arguments and dispatches to the appropriate command handler.
  */
 
@@ -21,7 +20,7 @@ const _orig = (process.emitWarning as any).bind(process);
 import { parseArgs } from './args.js';
 import { dim, boldCyan } from './colors.js';
 import { logError } from './display.js';
-import { checkForUpdate } from './updateCheck.js';
+import { cliConfig } from './cliConfig.js';
 
 // Auto-load .env from cwd if it exists (only sets vars not already in env)
 try {
@@ -32,7 +31,11 @@ try {
     const eqIndex = trimmed.indexOf('=');
     if (eqIndex === -1) continue;
     const key = trimmed.slice(0, eqIndex).trim();
-    const value = trimmed.slice(eqIndex + 1).trim();
+    let value = trimmed.slice(eqIndex + 1).trim();
+    // Strip matching surrounding quotes (common .env convention)
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
     if (!process.env[key]) {
       process.env[key] = value;
     }
@@ -40,44 +43,19 @@ try {
 } catch {
   // No .env file — that's fine, env vars may be set directly
 }
-import { printHelp } from './commands/help.js';
-import { commandRun } from './commands/run.js';
-import { commandLogin } from './commands/login.js';
-import { commandPing } from './commands/ping.js';
-import { commandGuide } from './commands/guide.js';
 
 async function main(): Promise<void> {
-  checkForUpdate();
+  if (cliConfig.onStartup) cliConfig.onStartup();
 
   const { command, flags, positionalTask } = parseArgs(process.argv);
 
-  switch (command) {
-    case 'run':
-      await commandRun(flags, positionalTask);
-      break;
-
-    case 'ping':
-      await commandPing(flags);
-      break;
-
-    case 'login':
-      await commandLogin(flags);
-      break;
-
-    case 'guide':
-      commandGuide();
-      break;
-
-    case 'help':
-    case '--help':
-    case '-h':
-      printHelp();
-      break;
-
-    default:
-      logError(`Unknown command: "${command}"`);
-      console.log(`\n  Run ${boldCyan('dash help')} for usage information.\n`);
-      process.exit(1);
+  const handler = cliConfig.commands[command];
+  if (handler) {
+    await handler(flags, positionalTask);
+  } else {
+    logError(`Unknown command: "${command}"`);
+    console.log(`\n  Run ${boldCyan(`${cliConfig.productName} help`)} for usage information.\n`);
+    process.exit(1);
   }
 }
 

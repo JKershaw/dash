@@ -5,7 +5,7 @@ import type { ToolSet, GitOperations, TestRunner, SseEmitter } from '../../types
 import type { TaskEvent } from '../../types/events.js';
 import { createLocalExecutor } from '../../infrastructure/tools/localExecutor.js';
 
-export interface CloudRunConfig {
+export interface BaseCloudRunConfig {
   client: TransportClient;
   tools: ToolSet;
   git: GitOperations;
@@ -32,7 +32,7 @@ export interface CloudRunResult {
   taskId?: string;
 }
 
-export async function startCloudRun(config: CloudRunConfig): Promise<CloudRunResult> {
+export async function startCloudRun<T extends BaseCloudRunConfig>(config: T): Promise<CloudRunResult> {
   const executor = createLocalExecutor(config.tools, config.git, config.testRunner);
   config.client.onToolRequest(executor);
 
@@ -56,6 +56,10 @@ export async function startCloudRun(config: CloudRunConfig): Promise<CloudRunRes
     }
   });
 
+  // Build payload from config, excluding non-payload fields.
+  // Extra fields from extended configs (e.g. keepGeneratedTests) pass through automatically.
+  const { client: _, tools: _t, git: _g, testRunner: _r, emitter: _e, taskId, ...payloadFields } = config;
+
   config.client.send({
     kind: 'task_command',
     message: {
@@ -63,17 +67,8 @@ export async function startCloudRun(config: CloudRunConfig): Promise<CloudRunRes
       version: PROTOCOL_VERSION,
       type: 'create',
       payload: {
-        id: config.taskId,
-        repoPath: config.repoPath,
-        originalRepoPath: config.originalRepoPath,
-        testCommand: config.testCommand,
-        taskDescription: config.taskDescription,
-        model: config.model,
-        queryMode: config.queryMode,
-        generateTests: config.generateTests,
-        protectTestFiles: config.protectTestFiles,
-        skipDecompose: config.skipDecompose,
-        maxCorrectionIterations: config.maxCorrectionIterations,
+        id: taskId,
+        ...payloadFields,
       },
     },
   });

@@ -161,9 +161,13 @@ function isPlaceholderScript(scriptTest: string): boolean {
 function detectTestCommand(scan: RepoScan): { command: string | null; confidence: 'high' | 'medium' | 'low' | null } {
   const scriptTest = scan.packageJson?.scripts?.test;
 
-  // If there's a valid test script (not a placeholder), return it with high confidence
+  // If there's a valid test script (not a placeholder), return it with high confidence.
+  // When the script is a bare framework name (e.g. "jest"), wrap it with the known
+  // executable command (e.g. "npx jest") so it works without a global install.
   if (scriptTest && !isPlaceholderScript(scriptTest)) {
-    return { command: scriptTest, confidence: 'high' };
+    const trimmed = scriptTest.trim();
+    const wrapped = FRAMEWORK_COMMANDS[trimmed];
+    return { command: wrapped ?? scriptTest, confidence: 'high' };
   }
 
   // If script is a placeholder or missing, try to infer from framework detection
@@ -281,6 +285,43 @@ export function detectTestFile(sourcePath: string, scan: RepoScan): string | nul
     if (testBase === sourceBase) {
       return sample.path;
     }
+  }
+
+  return null;
+}
+
+// ── Syntax-check fallback ─────────────────────────────────────────────
+
+/**
+ * Language-keyed syntax-check commands for repos with no detectable test framework.
+ * Each command validates that source files parse without errors.
+ */
+const SYNTAX_CHECK_COMMANDS: Record<string, string> = {
+  'TypeScript': 'npx tsc --noEmit',
+  'TypeScript (strict mode)': 'npx tsc --noEmit',
+  'Python': 'python -m py_compile',
+  'Go': 'go vet ./...',
+  'Rust': 'cargo check',
+};
+
+/**
+ * Returns a language-appropriate syntax-check command when no test framework
+ * or test script can be detected. Returns null if the language is unknown or
+ * has no suitable syntax checker.
+ *
+ * Pure function — uses the same detectLanguage() helper as detectProjectSummary().
+ */
+export function getSyntaxCheckCommand(scan: RepoScan): string | null {
+  const language = detectLanguage(scan);
+  if (!language) return null;
+
+  const command = SYNTAX_CHECK_COMMANDS[language];
+  if (command) return command;
+
+  // JavaScript: fall back to node -c against the first source file
+  if (language === 'JavaScript') {
+    const jsFile = scan.sourceHeaders.find(h => h.path.endsWith('.js') || h.path.endsWith('.jsx'));
+    if (jsFile) return `node -c ${jsFile.path}`;
   }
 
   return null;

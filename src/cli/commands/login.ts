@@ -35,9 +35,10 @@ async function openBrowser(url: string): Promise<void> {
 }
 
 export async function commandLogin(flags: Record<string, string>): Promise<void> {
-  const serverUrl = flags.cloud || flags.server || `http://localhost:${process.env.DASH_BUILD_PORT || '3000'}`;
+  const { cliConfig } = await import('../cliConfig.js');
+  const serverUrl = flags.cloud || flags.server || cliConfig.getDefaultServerUrl();
 
-  log(`\n  ${boldCyan('Dash Build Login')}\n`);
+  log(`\n  ${boldCyan(`${cliConfig.productName} Login`)}\n`);
   log(`  Server: ${dim(serverUrl)}\n`);
 
   // Step 1: Request a device code

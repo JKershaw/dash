@@ -1,5 +1,5 @@
 /**
- * ping command — tests connectivity to a remote Dash Build server.
+ * ping command — tests connectivity to a remote server.
  *
  * Checks:
  *  1. HTTP reachability (GET /api/auth/status — always public)
@@ -8,14 +8,11 @@
  *
  * Uses undici with EnvHttpProxyAgent so checks respect HTTPS_PROXY / https_proxy
  * and NO_PROXY.  Safe to run without an API key.
- *
- * Usage:
- *   npx tsx src/cli.ts ping --cloud https://dash.jkershaw.com
- *   npx tsx src/cli.ts ping --cloud wss://dash.jkershaw.com   (also tests WS)
  */
 
 import { fetch as undicicFetch, WebSocket as UndiciWebSocket, EnvHttpProxyAgent } from 'undici';
 import { bold, cyan, dim, boldGreen, boldRed, yellow } from '../colors.js';
+import { cliConfig } from '../cliConfig.js';
 
 // Reads HTTP_PROXY / HTTPS_PROXY and respects NO_PROXY automatically
 const proxyAgent = new EnvHttpProxyAgent();
@@ -28,7 +25,7 @@ export async function commandPing(flags: Record<string, string>): Promise<void> 
   const cloudUrl = flags['cloud'];
   if (!cloudUrl) {
     console.error(boldRed('Error:') + ' --cloud <url> is required for ping');
-    console.log(`  Example: ${cyan('npx tsx src/cli.ts ping --cloud https://dash.jkershaw.com')}`);
+    console.log(`  Example: ${cyan(cliConfig.pingExample)}`);
     process.exit(1);
   }
 

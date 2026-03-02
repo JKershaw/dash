@@ -16,19 +16,20 @@ import {
   boldGreen,
   boldRed,
 } from './colors.js';
+import { cliConfig } from './cliConfig.js';
 
 // ---------------------------------------------------------------------------
 // Pretty-print helpers
 // ---------------------------------------------------------------------------
 
-const PREFIX = `${dim('[')}${boldCyan('dash-build')}${dim(']')}`;
-
 export function log(message: string): void {
-  console.log(`${PREFIX} ${message}`);
+  const prefix = `${dim('[')}${boldCyan(cliConfig.productName)}${dim(']')}`;
+  console.log(`${prefix} ${message}`);
 }
 
 export function logError(message: string): void {
-  console.error(`${PREFIX} ${boldRed('ERROR')} ${red(message)}`);
+  const prefix = `${dim('[')}${boldCyan(cliConfig.productName)}${dim(']')}`;
+  console.error(`${prefix} ${boldRed('ERROR')} ${red(message)}`);
 }
 
 export function printPhaseHeader(phase: string): void {
@@ -64,11 +65,11 @@ export function formatEventForDisplay(event: TaskEvent): string | null {
 
       if (!preview || !label) return null;
 
-      const lines = [`  ${dim(`\u250c\u2500 ${label} \u2500`)}`];
+      const lines = [`  ${dim(`┌─ ${label} ─`)}`];
       for (const line of preview.split('\n')) {
-        lines.push(dim(`  \u2502 ${line}`));
+        lines.push(dim(`  │ ${line}`));
       }
-      lines.push(dim('  \u2514\u2500'));
+      lines.push(dim('  └─'));
       return lines.join('\n');
     }
 

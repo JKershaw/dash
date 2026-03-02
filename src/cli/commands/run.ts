@@ -20,15 +20,18 @@ import { getStoredCredentials, saveCredentials } from './login.js';
  * 3. Stores the new credentials for reuse.
  * Returns undefined if token resolution fails (backward compat — connect without auth).
  */
+/** Normalize a URL to its HTTP base form for comparison (strip trailing slash, ws→http). */
+function normalizeServerUrl(url: string): string {
+  return url.replace(/\/$/, '').replace(/^ws(s?):\/\//, 'http$1://');
+}
+
 async function resolveTransportToken(serverUrl: string): Promise<string | undefined> {
-  // Normalize URL for comparison (strip trailing slash)
-  const normalizedUrl = serverUrl.replace(/\/$/, '');
-  // For WS URLs, derive the HTTP base URL for the auth request
-  const httpBase = normalizedUrl.replace(/^ws(s?):\/\//, 'http$1://');
+  // Normalize URL for comparison (strip trailing slash, ws→http)
+  const httpBase = normalizeServerUrl(serverUrl);
 
   // Check stored credentials
   const creds = getStoredCredentials();
-  if (creds && creds.serverUrl.replace(/\/$/, '') === normalizedUrl) {
+  if (creds && normalizeServerUrl(creds.serverUrl) === httpBase) {
     return creds.sessionId;
   }
 
@@ -44,7 +47,7 @@ async function resolveTransportToken(serverUrl: string): Promise<string | undefi
     if (data.sessionId) {
       saveCredentials({
         sessionId: data.sessionId,
-        serverUrl: normalizedUrl,
+        serverUrl: httpBase,
         savedAt: new Date().toISOString(),
       });
       return data.sessionId;
@@ -112,12 +115,16 @@ export async function commandRun(flags: Record<string, string>, positionalTask?:
   const taskDescription = flags['task'] || positionalTask;
   const modelOverride = flags['model'];
   const verbose = flags['verbose'] === 'true' || flags['v'] === 'true';
-  const explicitQuiet = flags['quiet'] === 'true' || flags['q'] === 'true';
+  // Cloud mode always auto-approves (server runs runFullTask); accept -y silently for compat.
+  // const _autoApprove = flags['auto-approve'] === 'true' || flags['y'] === 'true';
   const generateTests = flags['no-generate-tests'] !== 'true';
   const protectTestFiles = flags['protect-test-files'] === 'true';
   const queryMode = flags['query'] === 'true';
   const skipDecompose = flags['skip-decompose'] === 'true';
   const noWorktree = flags['no-worktree'] === 'true';
+  const maxCorrectionIterations = flags['max-corrections']
+    ? parseInt(flags['max-corrections'], 10)
+    : undefined;
 
   // Validate task description (the only truly required input)
   if (!taskDescription) {
@@ -180,9 +187,8 @@ export async function commandRun(flags: Record<string, string>, positionalTask?:
     || await detectLocalServer(config.port)
     || config.defaultCloudUrl;
 
-  // Create the CLI emitter. Cloud mode defaults to quiet (results only);
-  // --quiet/-q reinforces this. --verbose overrides quiet.
-  const quiet = (explicitQuiet || true) && !verbose;
+  // Cloud mode defaults to quiet (results only). --verbose overrides.
+  const quiet = !verbose;
   const cliEmitter = createCliEmitter({ verbose, quiet });
 
   if (explicitCloudUrl) {
@@ -264,10 +270,11 @@ export async function commandRun(flags: Record<string, string>, positionalTask?:
     testCommand,
     taskDescription,
     model: defaultModel,
-    queryMode: queryMode || undefined,
-    generateTests: generateTests || undefined,
-    protectTestFiles: protectTestFiles || undefined,
-    skipDecompose: skipDecompose || undefined,
+    queryMode,
+    generateTests,
+    protectTestFiles,
+    skipDecompose,
+    maxCorrectionIterations,
     emitter: cliEmitter,
   });
 

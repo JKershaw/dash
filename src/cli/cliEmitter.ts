@@ -15,20 +15,11 @@ export interface CliEmitterOptions {
 
 const QUIET_SUPPRESSED = new Set(['tool_called', 'section_updated', 'llm_response', 'diff_generated']);
 
-export function createCliEmitter(options: CliEmitterOptions = {}): SseEmitter & { getEvents(taskId: string): TaskEvent[] } {
+export function createCliEmitter(options: CliEmitterOptions = {}): SseEmitter {
   const { verbose = false, quiet = false } = options;
-  const eventsByTask = new Map<string, TaskEvent[]>();
 
   return {
     emit(taskId: string, event: TaskEvent): void {
-      // Store the event
-      let events = eventsByTask.get(taskId);
-      if (!events) {
-        events = [];
-        eventsByTask.set(taskId, events);
-      }
-      events.push(event);
-
       // In quiet mode, suppress working-out events (keep results only)
       if (quiet && QUIET_SUPPRESSED.has(event.type)) return;
 
@@ -49,11 +40,11 @@ export function createCliEmitter(options: CliEmitterOptions = {}): SseEmitter & 
         if (event.type === 'llm_response') {
           const content = event.payload.content as string | undefined;
           if (content) {
-            console.log(dim('    \u250c\u2500 LLM output \u2500'));
+            console.log(dim('    ┌─ LLM output ─'));
             for (const line of content.split('\n')) {
-              console.log(dim(`    \u2502 ${line}`));
+              console.log(dim(`    │ ${line}`));
             }
-            console.log(dim('    \u2514\u2500'));
+            console.log(dim('    └─'));
           }
         }
 
@@ -64,11 +55,11 @@ export function createCliEmitter(options: CliEmitterOptions = {}): SseEmitter & 
             const preview = result.length > 500
               ? result.slice(0, 500) + '...'
               : result;
-            console.log(dim(`    \u250c\u2500 ${fnName} result \u2500`));
+            console.log(dim(`    ┌─ ${fnName} result ─`));
             for (const line of preview.split('\n')) {
-              console.log(dim(`    \u2502 ${line}`));
+              console.log(dim(`    │ ${line}`));
             }
-            console.log(dim('    \u2514\u2500'));
+            console.log(dim('    └─'));
           }
         }
 
@@ -85,10 +76,6 @@ export function createCliEmitter(options: CliEmitterOptions = {}): SseEmitter & 
           }
         }
       }
-    },
-
-    getEvents(taskId: string): TaskEvent[] {
-      return eventsByTask.get(taskId) || [];
     },
   };
 }

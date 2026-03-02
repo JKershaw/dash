@@ -14,6 +14,9 @@ export interface Section {
 
 export interface TaskConfig {
   repoPath: string;
+  /** When worktree isolation is active, stores the real repo path.
+   *  `repoPath` then contains the worktree path. */
+  originalRepoPath?: string;
   testCommand: string;
   taskDescription: string;
   model: string;
@@ -29,6 +32,10 @@ export interface TaskConfig {
   skipDecompose?: boolean;
   /** Override the maximum number of correction iterations for this task. */
   maxCorrectionIterations?: number;
+  /** When set, restrict diff generation to only these file paths (--files flag). */
+  allowedFiles?: string[];
+  /** When true, keep generated test files in the repo after task completion. Default: clean up. */
+  keepGeneratedTests?: boolean;
 }
 
 /** Structured test context extracted from bootstrap scan. */
@@ -89,7 +96,7 @@ export interface Task {
   /** Test files created by the test_gen phase (S2.2). Allow-list for correction (S2.3). */
   generatedTestFiles?: string[];
   resolvedTestCommand?: string;
-  testCommandSource?: 'user' | 'llm_resolved' | 'llm_retry';
+  testCommandSource?: 'user' | 'llm_resolved' | 'llm_retry' | 'syntax_check_fallback';
   /** Subtasks produced by the decompose phase — read by CLI/driver for external orchestration. */
   subtasks?: Subtask[];
   /** Diagnostic summary produced when a task fails (S8.0). */

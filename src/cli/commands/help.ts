@@ -40,6 +40,7 @@ ${bold('RUN OPTIONS')}
   ${yellow('--query')}                    Research-only mode: explore codebase and answer questions
   ${yellow('--skip-decompose')}           Skip automatic task decomposition (run as single task)
   ${yellow('--max-corrections')} <n>     Maximum number of correction iterations (default: 3)
+  ${yellow('--no-worktree')}              Run directly in the repo (skip worktree isolation)
 
 ${bold('ENVIRONMENT')}
   A .env file in the current directory is auto-loaded (no --env-file needed).
