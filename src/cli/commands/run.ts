@@ -271,6 +271,32 @@ export async function commandRun(flags: Record<string, string>, positionalTask?:
     emitter: cliEmitter,
   });
 
+  // CLI-side worktree cleanup: merge changes back and remove worktree.
+  // The server cannot reliably do this via RPC because the transport closes
+  // as soon as task_status is received (race condition).
+  if (effectiveRepo !== resolvedRepo) {
+    const worktreeBranch = `dash-wt-${preGeneratedId}`;
+    if (result.status === 'complete') {
+      try {
+        const mergeResult = await gitOps.mergeWorktreeBranch(worktreeBranch, resolvedRepo);
+        if (mergeResult.success) {
+          log(`Merged worktree branch ${dim(worktreeBranch)} into main`);
+        } else {
+          logError(`Merge conflict: ${mergeResult.error}`);
+          log(`Branch ${cyan(worktreeBranch)} preserved for manual resolution.`);
+        }
+      } catch (err) {
+        logError(`Worktree merge failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    try {
+      await gitOps.removeWorktree(effectiveRepo, resolvedRepo);
+      log(`Worktree cleaned up`);
+    } catch {
+      // Best-effort cleanup
+    }
+  }
+
   if (result.status === 'complete') {
     printComplete();
     console.log(boldGreen('Task completed successfully.'));
