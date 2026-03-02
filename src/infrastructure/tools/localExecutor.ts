@@ -63,6 +63,21 @@ export function createLocalExecutor(
           result = await git.checkJsSyntax(params.filePath, params.repoPath);
           break;
 
+        case 'addWorktree':
+          result = await git.addWorktree(params.taskId as string, params.repoPath as string);
+          break;
+        case 'removeWorktree':
+          await git.removeWorktree(
+            params.worktreePath as string,
+            params.repoPath as string,
+            params.opts as { keepBranch?: boolean } | undefined,
+          );
+          result = null;
+          break;
+        case 'mergeWorktreeBranch':
+          result = await git.mergeWorktreeBranch(params.branchName as string, params.repoPath as string);
+          break;
+
         case 'runTests':
           result = await testRunner.run(params.testCommand, params.repoPath, params.timeoutMs);
           break;

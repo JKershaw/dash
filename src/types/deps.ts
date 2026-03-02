@@ -28,6 +28,12 @@ export interface GitOperations {
   resetWorkingTree(repoPath: string): Promise<void>;
   checkoutFile(filePath: string, repoPath: string): Promise<void>;
   checkJsSyntax(filePath: string, repoPath: string): Promise<SyntaxCheckResult>;
+  /** Create a git worktree for task isolation. Returns the worktree path. */
+  addWorktree(taskId: string, repoPath: string): Promise<string>;
+  /** Remove a worktree and clean up its branch. */
+  removeWorktree(worktreePath: string, repoPath: string, opts?: { keepBranch?: boolean }): Promise<void>;
+  /** Merge a worktree branch back into the current branch. */
+  mergeWorktreeBranch(branchName: string, repoPath: string): Promise<{ success: boolean; error?: string }>;
 }
 
 export interface TestRunner {

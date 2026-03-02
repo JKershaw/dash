@@ -25,6 +25,9 @@ export type ToolRequestType =
   | 'resetWorkingTree'
   | 'checkoutFile'
   | 'checkJsSyntax'
+  | 'addWorktree'
+  | 'removeWorktree'
+  | 'mergeWorktreeBranch'
   | 'runTests'
   | 'scanRepo';
 

@@ -7,6 +7,7 @@ export interface Config {
   maxTestOutputChars: number;
   maxToolResultChars: number;
   testMaxTimeoutMs: number;
+  noWorktree: boolean;
   defaultCloudUrl: string;
 }
 
@@ -20,6 +21,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     maxTestOutputChars: parseInt(env.DASH_BUILD_MAX_TEST_OUTPUT_CHARS || '5000', 10),
     maxToolResultChars: parseInt(env.DASH_BUILD_MAX_TOOL_RESULT_CHARS || '20000', 10),
     testMaxTimeoutMs: parseInt(env.DASH_BUILD_TEST_MAX_TIMEOUT_MS || '600000', 10),
+    noWorktree: env.DASH_BUILD_NO_WORKTREE === 'true',
     defaultCloudUrl: env.DASH_CLOUD_URL || 'https://dash.jkershaw.com',
   };
 }

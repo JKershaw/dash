@@ -117,6 +117,7 @@ export async function commandRun(flags: Record<string, string>, positionalTask?:
   const protectTestFiles = flags['protect-test-files'] === 'true';
   const queryMode = flags['query'] === 'true';
   const skipDecompose = flags['skip-decompose'] === 'true';
+  const noWorktree = flags['no-worktree'] === 'true';
 
   // Validate task description (the only truly required input)
   if (!taskDescription) {
@@ -219,12 +220,31 @@ export async function commandRun(flags: Record<string, string>, positionalTask?:
 
   const gitOps = createGitOperations();
   const testRunnerInst = createTestRunner({ maxTimeoutMs: config.testMaxTimeoutMs });
+
+  // Worktree isolation: create an isolated working directory for concurrent safety.
+  const shouldWorktree = !noWorktree && !config.noWorktree && !queryMode;
+  let effectiveRepo = resolvedRepo;
+  let preGeneratedId: string | undefined;
+
+  if (shouldWorktree) {
+    const { v4: uuidv4 } = await import('uuid');
+    preGeneratedId = uuidv4();
+    try {
+      effectiveRepo = await gitOps.addWorktree(preGeneratedId, resolvedRepo);
+      log(`Worktree: ${dim(effectiveRepo)}`);
+    } catch (err) {
+      logError(`Worktree creation failed, using direct repo access: ${err instanceof Error ? err.message : String(err)}`);
+      effectiveRepo = resolvedRepo;
+      preGeneratedId = undefined;
+    }
+  }
+
   const tools = {
-    readFile: createReadFileTool(resolvedRepo, config.maxFileReadLines),
-    readFileRaw: createReadFileRawTool(resolvedRepo),
-    writeFile: createWriteFileTool(resolvedRepo),
-    listDir: createListDirTool(resolvedRepo, config.maxListDirEntries),
-    search: createSearchTool(resolvedRepo, config.maxSearchResults),
+    readFile: createReadFileTool(effectiveRepo, config.maxFileReadLines),
+    readFileRaw: createReadFileRawTool(effectiveRepo),
+    writeFile: createWriteFileTool(effectiveRepo),
+    listDir: createListDirTool(effectiveRepo, config.maxListDirEntries),
+    search: createSearchTool(effectiveRepo, config.maxSearchResults),
     // askSubagent is handled server-side in cloud mode — the server uses its
     // own LLM client so no local API key is needed
     askSubagent: async () => { throw new Error('askSubagent should not be called on CLI in cloud mode'); },
@@ -238,7 +258,9 @@ export async function commandRun(flags: Record<string, string>, positionalTask?:
     tools,
     git: gitOps,
     testRunner: testRunnerInst,
-    repoPath: resolvedRepo,
+    repoPath: effectiveRepo,
+    originalRepoPath: effectiveRepo !== resolvedRepo ? resolvedRepo : undefined,
+    taskId: preGeneratedId,
     testCommand,
     taskDescription,
     model: defaultModel,

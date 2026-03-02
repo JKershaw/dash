@@ -116,6 +116,51 @@ export function createGitOperations(): GitOperations {
     return checkJsSyntaxImpl(filePath, repoPath);
   }
 
+  async function addWorktree(taskId: string, repoPath: string): Promise<string> {
+    const worktreePath = path.join(tmpdir(), `dash-worktree-${taskId}`);
+    const branchName = `dash-wt-${taskId}`;
+    try {
+      execGit(`git worktree add '${worktreePath}' -b '${branchName}'`, repoPath);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to create worktree: ${errorMessage}`);
+    }
+    return worktreePath;
+  }
+
+  async function removeWorktree(worktreePath: string, repoPath: string, opts?: { keepBranch?: boolean }): Promise<void> {
+    try {
+      execGit(`git worktree remove '${worktreePath}' --force`, repoPath);
+    } catch {
+      // Worktree may already be deleted from disk — clean up manually
+      try { fs.rmSync(worktreePath, { recursive: true, force: true }); } catch { /* noop */ }
+      try { execGit('git worktree prune', repoPath); } catch { /* noop */ }
+    }
+    if (!opts?.keepBranch) {
+      // Clean up the branch ref (best-effort, may already be deleted or merged)
+      const branchName = 'dash-wt-' + path.basename(worktreePath).replace('dash-worktree-', '');
+      try { execGit(`git branch -D '${branchName}'`, repoPath); } catch { /* noop */ }
+    }
+  }
+
+  async function mergeWorktreeBranch(
+    branchName: string,
+    repoPath: string,
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const escapedBranch = branchName.replace(/'/g, "'\\''");
+      execGit(`git merge '${escapedBranch}' -m '[dash-build] Merge ${escapedBranch}'`, repoPath);
+      // Delete the branch after successful merge
+      try { execGit(`git branch -d '${escapedBranch}'`, repoPath); } catch { /* noop */ }
+      return { success: true };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      // Abort the failed merge to leave a clean state
+      try { execGit('git merge --abort', repoPath); } catch { /* noop */ }
+      return { success: false, error: `Merge conflict: ${message}. Branch '${branchName}' preserved for manual resolution.` };
+    }
+  }
+
   return {
     applyPatch,
     createCommit,
@@ -125,5 +170,8 @@ export function createGitOperations(): GitOperations {
     resetWorkingTree,
     checkoutFile,
     checkJsSyntax,
+    addWorktree,
+    removeWorktree,
+    mergeWorktreeBranch,
   };
 }

@@ -19,6 +19,10 @@ export interface CloudRunConfig {
   protectTestFiles?: boolean;
   skipDecompose?: boolean;
   maxCorrectionIterations?: number;
+  /** The original repo path when worktree isolation is active (repoPath is the worktree). */
+  originalRepoPath?: string;
+  /** Pre-generated task ID so the server uses the same ID as the worktree name. */
+  taskId?: string;
   /** Optional emitter to receive phase events in real-time (e.g. CLI display). */
   emitter?: SseEmitter;
 }
@@ -59,7 +63,9 @@ export async function startCloudRun(config: CloudRunConfig): Promise<CloudRunRes
       version: PROTOCOL_VERSION,
       type: 'create',
       payload: {
+        id: config.taskId,
         repoPath: config.repoPath,
+        originalRepoPath: config.originalRepoPath,
         testCommand: config.testCommand,
         taskDescription: config.taskDescription,
         model: config.model,
