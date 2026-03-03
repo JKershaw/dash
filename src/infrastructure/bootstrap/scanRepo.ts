@@ -70,6 +70,7 @@ export function scanRepo(repoPath: string): RepoScan {
     tsConfig,
     sourceHeaders,
     testFilePaths,
+    allTrackedFiles: files,
     testSamples,
     readme,
     configFiles,

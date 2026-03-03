@@ -29,8 +29,12 @@ export interface RepoScan {
   testSamples: FileHeader[];
   /** All test file paths found in the repo (not limited to samples). */
   testFilePaths: string[];
+  /** All git-tracked file paths (complete list from `git ls-files`). */
+  allTrackedFiles: string[];
   readme: string | null;
   configFiles: string[];
   runtimeVersions: Record<string, string>;
   lockfileType: 'npm' | 'yarn' | 'pnpm' | 'bun' | null;
+  /** Pre-formatted symbol overview from code index (replaces file headers). */
+  symbolOverview?: string;
 }

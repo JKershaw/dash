@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { TransportClient } from '../../types/protocol.js';
+import type { TransportClient, ToolRequest, ToolResponse } from '../../types/protocol.js';
 import { PROTOCOL_VERSION } from '../../types/protocol.js';
 import type { ToolSet, GitOperations, TestRunner, SseEmitter } from '../../types/deps.js';
 import type { TaskEvent } from '../../types/events.js';
@@ -25,6 +25,8 @@ export interface BaseCloudRunConfig {
   taskId?: string;
   /** Optional emitter to receive phase events in real-time (e.g. CLI display). */
   emitter?: SseEmitter;
+  /** Optional custom executor override. When provided, replaces the default createLocalExecutor. */
+  executor?: (request: ToolRequest) => Promise<ToolResponse>;
 }
 
 export interface CloudRunResult {
@@ -33,7 +35,7 @@ export interface CloudRunResult {
 }
 
 export async function startCloudRun<T extends BaseCloudRunConfig>(config: T): Promise<CloudRunResult> {
-  const executor = createLocalExecutor(config.tools, config.git, config.testRunner);
+  const executor = config.executor ?? createLocalExecutor(config.tools, config.git, config.testRunner);
   config.client.onToolRequest(executor);
 
   let capturedTaskId: string | undefined;
@@ -58,7 +60,7 @@ export async function startCloudRun<T extends BaseCloudRunConfig>(config: T): Pr
 
   // Build payload from config, excluding non-payload fields.
   // Extra fields from extended configs (e.g. keepGeneratedTests) pass through automatically.
-  const { client: _, tools: _t, git: _g, testRunner: _r, emitter: _e, taskId, ...payloadFields } = config;
+  const { client: _, tools: _t, git: _g, testRunner: _r, emitter: _e, executor: _x, taskId, ...payloadFields } = config;
 
   config.client.send({
     kind: 'task_command',
