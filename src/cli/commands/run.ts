@@ -8,8 +8,8 @@
 import { resolve, dirname, join } from 'node:path';
 import { existsSync, statSync } from 'node:fs';
 import type { Config } from '../../config.js';
-import { bold, dim, cyan, yellow, boldGreen, boldRed, ANSI } from '../colors.js';
-import { log, logError, printComplete } from '../display.js';
+import { bold, dim, cyan, yellow } from '../colors.js';
+import { log, logError, printTaskResult } from '../display.js';
 import { createCliEmitter } from '../cliEmitter.js';
 import { getStoredCredentials, saveCredentials } from './login.js';
 
@@ -314,13 +314,15 @@ export async function commandRun(flags: Record<string, string>, positionalTask?:
     }
   }
 
-  if (result.status === 'complete') {
-    printComplete();
-    console.log(boldGreen('Task completed successfully.'));
-  } else {
-    console.log(`\n${ANSI.boldRed}\u2501\u2501\u2501 Failed \u2501\u2501\u2501${ANSI.reset}`);
-    console.log(boldRed('Task failed.'));
-  }
+  printTaskResult({
+    status: result.status,
+    correctionCount: result.correctionCount,
+    failureSummary: result.failureSummary,
+    lastDiff: result.lastDiff,
+    totalTokens: result.totalTokens,
+    totalCost: result.totalCost,
+    callCount: result.callCount,
+  });
 
   if (result.taskId) {
     log(`Task ID: ${dim(result.taskId)}`);

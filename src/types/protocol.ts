@@ -77,6 +77,11 @@ export interface TaskStatusSnapshot {
   };
   costSoFar?: number;
   updatedAt: string;
+  correctionCount?: number;
+  failureSummary?: string;
+  lastDiff?: string;
+  answer?: string;
+  cost?: { totalTokens: number; totalCost: number; callCount: number };
 }
 
 export type ProtocolMessage =

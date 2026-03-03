@@ -42,6 +42,60 @@ export function printComplete(): void {
   console.log(`${ANSI.boldGreen}\u2501\u2501\u2501 Complete \u2501\u2501\u2501${ANSI.reset}`);
 }
 
+// ---------------------------------------------------------------------------
+// Task result summary (shared by local + cloud CLI paths)
+// ---------------------------------------------------------------------------
+
+export interface TaskResultSummary {
+  status: 'complete' | 'failed' | string;
+  correctionCount?: number;
+  failureSummary?: string;
+  lastDiff?: string;
+  totalTokens?: number;
+  totalCost?: number;
+  callCount?: number;
+}
+
+export function printTaskResult(summary: TaskResultSummary): void {
+  if (summary.status === 'complete') {
+    printComplete();
+    const correctionSuffix = summary.correctionCount && summary.correctionCount > 0
+      ? dim(` (correction loop fired ${summary.correctionCount}x)`)
+      : '';
+    console.log(`${boldGreen('Task completed successfully.')}${correctionSuffix}`);
+  } else if (summary.status === 'failed') {
+    console.log(`\n${ANSI.boldRed}\u2501\u2501\u2501 Failed \u2501\u2501\u2501${ANSI.reset}`);
+    console.log(boldRed('Task failed.'));
+    if (summary.failureSummary) {
+      console.log('');
+      console.log(bold('Failure diagnosis:'));
+      console.log(dim('\u2500'.repeat(60)));
+      console.log(summary.failureSummary);
+      console.log(dim('\u2500'.repeat(60)));
+    }
+  } else {
+    console.log(`\n${bold(`Final status: ${summary.status}`)}`);
+  }
+
+  // Cost summary
+  if (summary.totalTokens && summary.totalTokens > 0) {
+    console.log('');
+    const costStr = summary.totalCost && summary.totalCost > 0
+      ? ` | $${summary.totalCost.toFixed(6)}`
+      : '';
+    log(`${bold('Usage:')} ${summary.totalTokens.toLocaleString()} tokens${costStr} (${summary.callCount} calls)`);
+  }
+
+  // Generated diff
+  if (summary.lastDiff) {
+    console.log('');
+    console.log(bold('Generated diff:'));
+    console.log(dim('\u2500'.repeat(60)));
+    console.log(summary.lastDiff);
+    console.log(dim('\u2500'.repeat(60)));
+  }
+}
+
 export function formatEventForDisplay(event: TaskEvent): string | null {
   switch (event.type) {
     case 'phase_started':

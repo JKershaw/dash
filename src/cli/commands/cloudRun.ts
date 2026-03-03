@@ -32,6 +32,13 @@ export interface BaseCloudRunConfig {
 export interface CloudRunResult {
   status: 'complete' | 'failed';
   taskId?: string;
+  correctionCount?: number;
+  failureSummary?: string;
+  lastDiff?: string;
+  answer?: string;
+  totalTokens?: number;
+  totalCost?: number;
+  callCount?: number;
 }
 
 export async function startCloudRun<T extends BaseCloudRunConfig>(config: T): Promise<CloudRunResult> {
@@ -39,6 +46,7 @@ export async function startCloudRun<T extends BaseCloudRunConfig>(config: T): Pr
   config.client.onToolRequest(executor);
 
   let capturedTaskId: string | undefined;
+  let capturedExtras: Partial<CloudRunResult> = {};
   let resolveStatus: (status: 'complete' | 'failed') => void;
   const statusPromise = new Promise<'complete' | 'failed'>((resolve) => {
     resolveStatus = resolve;
@@ -53,6 +61,17 @@ export async function startCloudRun<T extends BaseCloudRunConfig>(config: T): Pr
       capturedTaskId = msg.message.taskId;
       const { status } = msg.message;
       if (status === 'complete' || status === 'failed') {
+        // Extract enriched fields from the terminal status message.
+        const m = msg.message;
+        if (m.correctionCount !== undefined) capturedExtras.correctionCount = m.correctionCount;
+        if (m.failureSummary) capturedExtras.failureSummary = m.failureSummary;
+        if (m.lastDiff) capturedExtras.lastDiff = m.lastDiff;
+        if (m.answer) capturedExtras.answer = m.answer;
+        if (m.cost) {
+          capturedExtras.totalTokens = m.cost.totalTokens;
+          capturedExtras.totalCost = m.cost.totalCost;
+          capturedExtras.callCount = m.cost.callCount;
+        }
         resolveStatus(status as 'complete' | 'failed');
       }
     }
@@ -78,5 +97,5 @@ export async function startCloudRun<T extends BaseCloudRunConfig>(config: T): Pr
   const status = await statusPromise;
   config.client.close();
 
-  return { status, taskId: capturedTaskId };
+  return { status, taskId: capturedTaskId, ...capturedExtras };
 }
