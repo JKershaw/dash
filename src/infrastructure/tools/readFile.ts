@@ -25,7 +25,7 @@ export function createReadFileTool(
   repoPath: string,
   maxLines: number,
 ): (path: string, startLine?: number, endLine?: number) => Promise<string> {
-  const readFullFiles = new Map<string, number>();
+  const readFullFiles = new Map<string, { content: string; readCount: number }>();
 
   return async function readFile(
     filePath: string,
@@ -42,8 +42,13 @@ export function createReadFileTool(
 
       const isFullRead = startLine === undefined && endLine === undefined;
       if (isFullRead && readFullFiles.has(filePath)) {
-        const lineCount = readFullFiles.get(filePath);
-        return `File "${filePath}" has already been read (${lineCount} lines). Use startLine/endLine to read specific sections.`;
+        const entry = readFullFiles.get(filePath)!;
+        entry.readCount++;
+        if (entry.readCount >= 3) {
+          return 'File already read. Use search or listDir to find other files, or summarize findings with [DISCOVERIES] markers.';
+        }
+        // 2nd read: return cached content (no disk I/O)
+        return entry.content;
       }
 
       const content = await fs.promises.readFile(resolved, 'utf-8');
@@ -68,10 +73,6 @@ export function createReadFileTool(
         return result;
       }
 
-      if (isFullRead) {
-        readFullFiles.set(filePath, lines.length);
-      }
-
       const truncated = lines.slice(0, maxLines);
       const numbered = truncated.map((line, i) => {
         const lineNum = i + 1;
@@ -82,6 +83,11 @@ export function createReadFileTool(
       if (lines.length > maxLines) {
         result += `\n... (truncated, showing ${maxLines} of ${lines.length} lines)`;
       }
+
+      if (isFullRead) {
+        readFullFiles.set(filePath, { content: result, readCount: 1 });
+      }
+
       return result;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);

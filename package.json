@@ -1,6 +1,6 @@
 {
   "name": "@jkershaw/dash",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Cloud CLI for Dash Build — run coding tasks against a hosted agent server",
   "type": "module",
   "bin": {

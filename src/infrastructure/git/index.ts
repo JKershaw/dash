@@ -147,14 +147,43 @@ export function createGitOperations(): GitOperations {
     branchName: string,
     repoPath: string,
   ): Promise<{ success: boolean; error?: string }> {
-    try {
-      const escapedBranch = branchName.replace(/'/g, "'\\''");
-      execGit(`git merge '${escapedBranch}' -m '[dash-build] Merge ${escapedBranch}'`, repoPath);
-      // Delete the branch after successful merge
+    const escapedBranch = branchName.replace(/'/g, "'\\''");
+    const mergeCmd = `git merge '${escapedBranch}' -m '[dash-build] Merge ${escapedBranch}'`;
+
+    function doMerge(): { success: boolean; error?: string } {
+      execGit(mergeCmd, repoPath);
       try { execGit(`git branch -d '${escapedBranch}'`, repoPath); } catch { /* noop */ }
       return { success: true };
+    }
+
+    try {
+      return doMerge();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
+
+      // Untracked files (e.g. __pycache__) block the merge.
+      // Remove only the specific conflicting files and retry once.
+      if (message.includes('would be overwritten')) {
+        const resolvedRepo = path.resolve(repoPath);
+        const files = message
+          .split('\n')
+          .filter(l => l.startsWith('\t'))
+          .map(l => l.trim())
+          .filter(Boolean);
+        for (const f of files) {
+          const resolved = path.resolve(repoPath, f);
+          if (!resolved.startsWith(resolvedRepo + path.sep)) continue;
+          try { fs.rmSync(resolved, { recursive: true, force: true }); } catch { /* noop */ }
+        }
+        try {
+          return doMerge();
+        } catch (retryErr: unknown) {
+          const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+          try { execGit('git merge --abort', repoPath); } catch { /* noop */ }
+          return { success: false, error: `Merge conflict: ${retryMsg}. Branch '${branchName}' preserved for manual resolution.` };
+        }
+      }
+
       // Abort the failed merge to leave a clean state
       try { execGit('git merge --abort', repoPath); } catch { /* noop */ }
       return { success: false, error: `Merge conflict: ${message}. Branch '${branchName}' preserved for manual resolution.` };
