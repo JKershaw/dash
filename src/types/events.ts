@@ -14,12 +14,14 @@ export type EventType =
   | 'diff_applied'
   | 'tests_run'
   | 'error'
+  | 'warning'
   | 'paused'
   | 'resumed'
   | 'snapshot_taken'
   | 'status_changed'
   | 'test_command_resolved'
-  | 'failure_diagnosed';
+  | 'failure_diagnosed'
+  | 'pr_created';
 
 export interface TaskEvent {
   id: string;

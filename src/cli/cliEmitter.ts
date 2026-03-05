@@ -63,7 +63,7 @@ export function createCliEmitter(options: CliEmitterOptions = {}): SseEmitter {
           }
         }
 
-        if (event.type === 'error') {
+        if (event.type === 'error' || event.type === 'warning') {
           const context = event.payload.context as string | undefined;
           const failedEdits = event.payload.failedEdits as string[] | undefined;
           if (context) {

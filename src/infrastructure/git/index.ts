@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
@@ -19,7 +20,7 @@ export function createGitOperations(): GitOperations {
     diffString: string,
     repoPath: string,
   ): Promise<{ success: boolean; error?: string }> {
-    const tmpFile = path.join(tmpdir(), `dash-build-patch-${Date.now()}.diff`);
+    const tmpFile = path.join(tmpdir(), `dash-build-patch-${Date.now()}-${randomUUID()}.diff`);
     try {
       fs.writeFileSync(tmpFile, diffString, 'utf-8');
 
@@ -48,7 +49,7 @@ export function createGitOperations(): GitOperations {
     try {
       execGit('git add -A', repoPath);
       const escapedMessage = message.replace(/'/g, "'\\''");
-      execGit(`git commit -m '[dash-build] ${escapedMessage}'`, repoPath);
+      execGit(`git commit --no-gpg-sign -m '[dash-build] ${escapedMessage}'`, repoPath);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       throw new Error(`Failed to create commit: ${errorMessage}`);
@@ -152,7 +153,8 @@ export function createGitOperations(): GitOperations {
 
     function doMerge(): { success: boolean; error?: string } {
       execGit(mergeCmd, repoPath);
-      try { execGit(`git branch -d '${escapedBranch}'`, repoPath); } catch { /* noop */ }
+      // Branch cleanup is handled by removeWorktree() — attempting deletion here
+      // always fails with "cannot delete branch used by worktree" noise.
       return { success: true };
     }
 

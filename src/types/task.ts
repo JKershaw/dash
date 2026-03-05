@@ -1,4 +1,4 @@
-export type Phase = 'research' | 'test_plan' | 'impl_plan' | 'test_gen' | 'decompose' | 'diff_gen' | 'correction' | 'complete' | 'answer';
+export type Phase = 'bootstrap' | 'research' | 'test_plan' | 'impl_plan' | 'test_gen' | 'decompose' | 'diff_gen' | 'correction' | 'complete' | 'answer';
 
 export type TaskStatus = 'idle' | 'running' | 'paused' | 'awaiting_approval' | 'complete' | 'failed';
 
@@ -36,6 +36,14 @@ export interface TaskConfig {
   allowedFiles?: string[];
   /** When true, keep generated test files in the repo after task completion. Default: clean up. */
   keepGeneratedTests?: boolean;
+  /** GitHub repo coordinates for cloud/GitHub mode. When set, uses GitHubContentSource. */
+  github?: {
+    owner: string;
+    repo: string;
+    ref: string;
+    token?: string;            // PAT fallback (optional now)
+    installationId?: number;   // GitHub App mode
+  };
 }
 
 /** Structured test context extracted from bootstrap scan. */
@@ -88,6 +96,8 @@ export interface Task {
   lastDiff?: string;
   lastTestOutput?: string;
   lastEditFailures?: string;
+  /** Final file contents produced by the diff pipeline (keyed by relative path). */
+  lastModifiedContents?: Record<string, string>;
   /** Per-file outcomes from the last diff attempt (multi-file only). */
   lastFileOutcomes?: FileEditOutcome[];
   fileStateAfterDiff?: Record<string, string>;
@@ -106,6 +116,12 @@ export interface Task {
   /** True when pre-flight assessment classified the task description as an implementation plan.
    *  Drives prompt calibration: research validates rather than rediscovers. */
   taskIsImplPlan?: boolean;
+  /** URL of the pull request created on task completion (GitHub mode). */
+  prUrl?: string;
+  /** PR number on GitHub (GitHub mode). */
+  prNumber?: number;
+  /** Feature branch name used for commits (GitHub mode). */
+  githubBranch?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -116,7 +132,7 @@ export const SECTION_NAMES: SectionName[] = [
 ];
 
 export const PHASE_ORDER: Phase[] = [
-  'research', 'test_plan', 'impl_plan', 'test_gen', 'decompose', 'diff_gen', 'correction', 'complete'
+  'bootstrap', 'research', 'test_plan', 'impl_plan', 'test_gen', 'decompose', 'diff_gen', 'correction', 'complete'
 ];
 
 /**
@@ -124,7 +140,7 @@ export const PHASE_ORDER: Phase[] = [
  * Used for progress tracking (e.g. MCP progress notifications).
  */
 export const PHASE_DISPLAY_ORDER: Phase[] = [
-  'research', 'test_plan', 'impl_plan', 'test_gen', 'decompose', 'diff_gen', 'correction', 'complete',
+  'bootstrap', 'research', 'test_plan', 'impl_plan', 'test_gen', 'decompose', 'diff_gen', 'correction', 'complete',
 ];
 
 /**
@@ -135,6 +151,7 @@ export const PHASE_DISPLAY_ORDER: Phase[] = [
  * transition for each phase.
  */
 const PHASE_TRANSITIONS: Partial<Record<Phase, Phase>> = {
+  bootstrap: 'research',
   research: 'test_plan',
   test_plan: 'impl_plan',
   impl_plan: 'diff_gen',

@@ -166,12 +166,28 @@ export function formatEventForDisplay(event: TaskEvent): string | null {
       }
     }
 
+    case 'warning': {
+      const warnMsg = (event.payload.message as string) || 'Unknown warning';
+      let warnOutput = `  ${yellow('\u26a0')} ${yellow(`Warning: ${warnMsg}`)}`;
+      if (event.payload.guidance) {
+        const guidance = event.payload.guidance as string[];
+        for (const line of guidance) {
+          warnOutput += `\n    ${dim(line)}`;
+        }
+      }
+      if (event.payload.suggestedSubtasks) {
+        const suggestedSubtasks = event.payload.suggestedSubtasks as string[];
+        warnOutput += `\n    ${dim('Suggested subtasks:')}`;
+        for (const st of suggestedSubtasks) {
+          warnOutput += `\n      ${dim(`- ${st}`)}`;
+        }
+      }
+      return warnOutput;
+    }
+
     case 'error': {
       const errorMsg = (event.payload.message as string) || (event.payload.error as string) || 'Unknown error';
-      const recoverable = event.payload.recoverable as boolean | undefined;
-      let errorOutput = recoverable
-        ? `  ${yellow('\u26a0')} ${yellow(`Warning: ${errorMsg}`)}`
-        : `  ${red('\u2717')} ${red(`Error: ${errorMsg}`)}`;
+      let errorOutput = `  ${red('\u2717')} ${red(`Error: ${errorMsg}`)}`;
       if (event.payload.guidance) {
         const guidance = event.payload.guidance as string[];
         for (const line of guidance) {

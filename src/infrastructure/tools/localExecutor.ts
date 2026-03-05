@@ -1,7 +1,8 @@
 import type { ToolSet, GitOperations, TestRunner } from '../../types/deps.js';
 import type { ToolRequest, ToolResponse } from '../../types/protocol.js';
 import { PROTOCOL_VERSION } from '../../types/protocol.js';
-import { scanRepo } from '../bootstrap/scanRepo.js';
+import { scanRepo, detectRuntimeVersions } from '../bootstrap/scanRepo.js';
+import { LocalContentSource } from '../contentSource/localContentSource.js';
 
 export function createLocalExecutor(
   tools: ToolSet,
@@ -82,9 +83,13 @@ export function createLocalExecutor(
           result = await testRunner.run(params.testCommand, params.repoPath, params.timeoutMs);
           break;
 
-        case 'scanRepo':
-          result = scanRepo(params.repoPath as string);
+        case 'scanRepo': {
+          const source = new LocalContentSource(params.repoPath as string);
+          const scan = await scanRepo(source);
+          scan.runtimeVersions = detectRuntimeVersions(params.repoPath as string);
+          result = scan;
           break;
+        }
 
         default:
           return {
