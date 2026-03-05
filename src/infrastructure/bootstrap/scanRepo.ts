@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process';
-import { extname, dirname, basename } from 'node:path';
+import { readFileSync, existsSync } from 'node:fs';
+import { join, extname, dirname } from 'node:path';
 
-import type { ContentSource } from '../../types/contentSource.js';
 import type { RepoScan, ParsedPackageJson, ParsedTsConfig, FileHeader } from '../../types/bootstrap.js';
 import { TEST_FILE_PATTERN } from '../../domain/fileExtensions.js';
 
@@ -42,37 +42,27 @@ const CONFIG_FILES = [
   'go.mod', 'Cargo.toml',
 ];
 
-/** Lockfile names mapped to their package manager. */
-const LOCKFILES: [string, 'npm' | 'yarn' | 'pnpm' | 'bun'][] = [
-  ['package-lock.json', 'npm'],
-  ['yarn.lock', 'yarn'],
-  ['pnpm-lock.yaml', 'pnpm'],
-  ['bun.lockb', 'bun'],
-];
-
 /**
- * Scans a repository via a ContentSource and returns structured data about its
- * contents.
+ * Scans a repository and returns structured data about its contents.
  *
- * File reads go through the `source` abstraction so this works against a local
- * filesystem, a remote CLI (via RPC), or a GitHub API snapshot.
+ * Uses `git ls-files` to respect .gitignore. Reads file headers (first N lines)
+ * from source files to capture imports and top-level declarations.
  *
- * Note: `runtimeVersions` is not populated here — it requires local shell
- * access. Call `detectRuntimeVersions(repoPath)` separately when running
- * locally.
+ * All file reads are synchronous — this runs before any async phase work
+ * and the files are small (headers only).
  */
-export async function scanRepo(source: ContentSource): Promise<RepoScan> {
-  const files = await source.listFiles();
+export function scanRepo(repoPath: string): RepoScan {
+  const files = getTrackedFiles(repoPath);
   const fileTree = buildFileTree(files);
-  const fileSet = new Set(files);
-  const packageJson = await readPackageJson(source);
-  const tsConfig = await readTsConfig(source);
-  const sourceHeaders = await readSourceHeaders(source, files);
+  const packageJson = readPackageJson(repoPath);
+  const tsConfig = readTsConfig(repoPath);
+  const sourceHeaders = readSourceHeaders(repoPath, files);
   const testFilePaths = files.filter(f => isTestFile(f));
-  const testSamples = await readTestSamples(source, files);
-  const readme = await readReadme(source);
-  const configFiles = detectConfigFiles(fileSet);
-  const lockfileType = detectLockfileType(fileSet);
+  const testSamples = readTestSamples(repoPath, files);
+  const readme = readReadme(repoPath);
+  const configFiles = detectConfigFiles(repoPath);
+  const runtimeVersions = detectRuntimeVersions(repoPath);
+  const lockfileType = detectLockfileType(repoPath);
 
   return {
     fileTree,
@@ -84,28 +74,25 @@ export async function scanRepo(source: ContentSource): Promise<RepoScan> {
     testSamples,
     readme,
     configFiles,
-    runtimeVersions: {},
+    runtimeVersions,
     lockfileType,
   };
 }
 
 /**
- * Detects runtime versions available in the repo's environment.
- * Currently checks for Node.js only — extend as needed.
- * Exported separately because it requires local shell access.
+ * Gets the list of tracked files via `git ls-files`.
  */
-export function detectRuntimeVersions(repoPath: string): Record<string, string> {
-  const versions: Record<string, string> = {};
+function getTrackedFiles(repoPath: string): string[] {
   try {
-    versions.node = execSync('node --version', {
+    const output = execSync('git ls-files', {
       cwd: repoPath,
       encoding: 'utf-8',
-      timeout: 5000,
-    }).trim();
+      timeout: 10000,
+    });
+    return output.trim().split('\n').filter(f => f.length > 0);
   } catch {
-    // Node not available
+    return [];
   }
-  return versions;
 }
 
 /**
@@ -150,10 +137,10 @@ function buildFileTree(files: string[]): string {
 /**
  * Reads and parses package.json if it exists.
  */
-async function readPackageJson(source: ContentSource): Promise<ParsedPackageJson | null> {
+function readPackageJson(repoPath: string): ParsedPackageJson | null {
+  const pkgPath = join(repoPath, 'package.json');
   try {
-    const raw = await source.readFile('package.json');
-    if (raw === null) return null;
+    const raw = readFileSync(pkgPath, 'utf-8');
     const parsed = JSON.parse(raw);
     return {
       name: parsed.name,
@@ -171,10 +158,10 @@ async function readPackageJson(source: ContentSource): Promise<ParsedPackageJson
 /**
  * Reads and parses tsconfig.json if it exists.
  */
-async function readTsConfig(source: ContentSource): Promise<ParsedTsConfig | null> {
+function readTsConfig(repoPath: string): ParsedTsConfig | null {
+  const tsPath = join(repoPath, 'tsconfig.json');
   try {
-    const raw = await source.readFile('tsconfig.json');
-    if (raw === null) return null;
+    const raw = readFileSync(tsPath, 'utf-8');
     const parsed = JSON.parse(raw);
     const co = parsed.compilerOptions || {};
     return {
@@ -194,7 +181,7 @@ async function readTsConfig(source: ContentSource): Promise<ParsedTsConfig | nul
  * Reads the first N lines from source files.
  * Prioritizes files with exports and entry points (index.ts).
  */
-async function readSourceHeaders(source: ContentSource, files: string[]): Promise<FileHeader[]> {
+function readSourceHeaders(repoPath: string, files: string[]): FileHeader[] {
   const sourceFiles = files
     .filter(f => SOURCE_EXTENSIONS.has(extname(f)))
     .filter(f => !isTestFile(f));
@@ -211,10 +198,13 @@ async function readSourceHeaders(source: ContentSource, files: string[]): Promis
 
   const headers: FileHeader[] = [];
   for (const file of sorted.slice(0, MAX_SOURCE_FILES)) {
-    const content = await source.readFile(file);
-    if (content === null) continue;
-    const lines = content.split('\n').slice(0, MAX_HEADER_LINES).join('\n');
-    headers.push({ path: file, lines });
+    try {
+      const content = readFileSync(join(repoPath, file), 'utf-8');
+      const lines = content.split('\n').slice(0, MAX_HEADER_LINES).join('\n');
+      headers.push({ path: file, lines });
+    } catch {
+      // Skip unreadable files
+    }
   }
 
   return headers;
@@ -230,15 +220,18 @@ function isTestFile(filePath: string): boolean {
 /**
  * Reads sample test files (first N lines of up to MAX_TEST_SAMPLES test files).
  */
-async function readTestSamples(source: ContentSource, files: string[]): Promise<FileHeader[]> {
+function readTestSamples(repoPath: string, files: string[]): FileHeader[] {
   const testFiles = files.filter(f => isTestFile(f));
   const samples: FileHeader[] = [];
 
   for (const file of testFiles.slice(0, MAX_TEST_SAMPLES)) {
-    const content = await source.readFile(file);
-    if (content === null) continue;
-    const lines = content.split('\n').slice(0, MAX_HEADER_LINES).join('\n');
-    samples.push({ path: file, lines });
+    try {
+      const content = readFileSync(join(repoPath, file), 'utf-8');
+      const lines = content.split('\n').slice(0, MAX_HEADER_LINES).join('\n');
+      samples.push({ path: file, lines });
+    } catch {
+      // Skip unreadable files
+    }
   }
 
   return samples;
@@ -247,30 +240,52 @@ async function readTestSamples(source: ContentSource, files: string[]): Promise<
 /**
  * Reads the first N lines of README.md (case-insensitive).
  */
-async function readReadme(source: ContentSource): Promise<string | null> {
+function readReadme(repoPath: string): string | null {
   const candidates = ['README.md', 'readme.md', 'README', 'README.txt'];
   for (const name of candidates) {
-    const content = await source.readFile(name);
-    if (content !== null) {
+    const readmePath = join(repoPath, name);
+    try {
+      const content = readFileSync(readmePath, 'utf-8');
       return content.split('\n').slice(0, MAX_README_LINES).join('\n');
+    } catch {
+      // Try next candidate
     }
   }
   return null;
 }
 
 /**
- * Detects which config files exist by checking the tracked file set.
+ * Detects which config files exist in the repo root.
  */
-function detectConfigFiles(fileSet: Set<string>): string[] {
-  return CONFIG_FILES.filter(name => fileSet.has(name));
+function detectConfigFiles(repoPath: string): string[] {
+  return CONFIG_FILES.filter(name => existsSync(join(repoPath, name)));
 }
 
 /**
- * Detects which package manager lockfile exists by checking the tracked file set.
+ * Detects runtime versions available in the repo's environment.
+ * Currently checks for Node.js only — extend as needed.
  */
-function detectLockfileType(fileSet: Set<string>): 'npm' | 'yarn' | 'pnpm' | 'bun' | null {
-  for (const [name, manager] of LOCKFILES) {
-    if (fileSet.has(name)) return manager;
+function detectRuntimeVersions(repoPath: string): Record<string, string> {
+  const versions: Record<string, string> = {};
+  try {
+    versions.node = execSync('node --version', {
+      cwd: repoPath,
+      encoding: 'utf-8',
+      timeout: 5000,
+    }).trim();
+  } catch {
+    // Node not available
   }
+  return versions;
+}
+
+/**
+ * Detects which package manager lockfile exists in the repo root.
+ */
+function detectLockfileType(repoPath: string): 'npm' | 'yarn' | 'pnpm' | 'bun' | null {
+  if (existsSync(join(repoPath, 'package-lock.json'))) return 'npm';
+  if (existsSync(join(repoPath, 'yarn.lock'))) return 'yarn';
+  if (existsSync(join(repoPath, 'pnpm-lock.yaml'))) return 'pnpm';
+  if (existsSync(join(repoPath, 'bun.lockb'))) return 'bun';
   return null;
 }
