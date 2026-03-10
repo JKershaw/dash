@@ -35,3 +35,26 @@ export const SOURCE_FILE_DOTTED_EXTENSIONS: readonly string[] =
  * file blocks and by repo scanning to identify test files.
  */
 export const TEST_FILE_PATTERN = /(?:\.test\.|\.spec\.|[\\/]test[\\/]|[\\/]tests[\\/]|[\\/]__tests__[\\/])/;
+
+/**
+ * Maps JS-family extensions to their TypeScript source equivalents.
+ *
+ * TypeScript ESM projects use `.js` extensions in imports even though source
+ * files are `.ts`. This map supports fallback resolution: when a `.js` path
+ * isn't found, try the corresponding `.ts`/`.tsx` variant.
+ */
+const TS_JS_EXTENSION_MAP: Record<string, string[]> = {
+  '.js': ['.ts', '.tsx'],
+  '.jsx': ['.tsx'],
+  '.mjs': ['.mts'],
+  '.cjs': ['.cts'],
+};
+
+export function tsExtensionVariants(filename: string): string[] {
+  for (const [jsExt, tsExts] of Object.entries(TS_JS_EXTENSION_MAP)) {
+    if (filename.endsWith(jsExt)) {
+      return tsExts.map(ext => filename.slice(0, -jsExt.length) + ext);
+    }
+  }
+  return [];
+}

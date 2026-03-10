@@ -1,19 +1,15 @@
-import { execSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
+import simpleGit from 'simple-git';
 
 import type { GitOperations, SyntaxCheckResult } from '../../types/deps.js';
 import { checkJsSyntax as checkJsSyntaxImpl } from '../syntaxCheck.js';
 
 export function createGitOperations(): GitOperations {
-  function execGit(command: string, repoPath: string): string {
-    return execSync(command, {
-      cwd: repoPath,
-      encoding: 'utf-8',
-      timeout: 30000,
-    }).trim();
+  function gitFor(repoPath: string) {
+    return simpleGit(repoPath, { timeout: { block: 30_000 } });
   }
 
   async function applyPatch(
@@ -21,35 +17,48 @@ export function createGitOperations(): GitOperations {
     repoPath: string,
   ): Promise<{ success: boolean; error?: string }> {
     const tmpFile = path.join(tmpdir(), `dash-build-patch-${Date.now()}-${randomUUID()}.diff`);
+    const git = gitFor(repoPath);
     try {
       fs.writeFileSync(tmpFile, diffString, 'utf-8');
 
+      // Dry-run check first
       try {
-        execGit(`git apply --whitespace=fix --check '${tmpFile}'`, repoPath);
+        await git.applyPatch(tmpFile, ['--whitespace=fix', '--check']);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         return { success: false, error: `Patch check failed: ${message}` };
       }
 
-      execGit(`git apply --whitespace=fix '${tmpFile}'`, repoPath);
+      // Apply for real
+      await git.applyPatch(tmpFile, ['--whitespace=fix']);
       return { success: true };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       return { success: false, error: `Failed to apply patch: ${message}` };
     } finally {
-      try {
-        fs.unlinkSync(tmpFile);
-      } catch {
-        // Ignore cleanup errors
-      }
+      try { fs.unlinkSync(tmpFile); } catch { /* ignore cleanup errors */ }
     }
   }
 
-  async function createCommit(message: string, repoPath: string): Promise<void> {
+  async function createCommit(
+    message: string,
+    repoPath: string,
+  ): Promise<{ oid: string; url: string } | void> {
+    const git = gitFor(repoPath);
+    const prefix = '[dash-build] ';
+    const fullSubject = `${prefix}${message}`;
+    let finalMessage = fullSubject;
+
+    if (fullSubject.length > 72) {
+      const truncated = fullSubject.slice(0, 69) + '...';
+      finalMessage = `${truncated}\n\n${message}`;
+    }
+
     try {
-      execGit('git add -A', repoPath);
-      const escapedMessage = message.replace(/'/g, "'\\''");
-      execGit(`git commit --no-gpg-sign -m '[dash-build] ${escapedMessage}'`, repoPath);
+      await git.add('-A');
+      await git.commit(finalMessage, { '--no-gpg-sign': null });
+      const headSha = (await git.revparse(['HEAD'])).trim();
+      return { oid: headSha, url: '' };
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       throw new Error(`Failed to create commit: ${errorMessage}`);
@@ -57,14 +66,15 @@ export function createGitOperations(): GitOperations {
   }
 
   async function revertLastCommit(repoPath: string): Promise<void> {
+    const git = gitFor(repoPath);
     try {
-      const lastMessage = execGit('git log -1 --format=%s', repoPath);
+      const lastMessage = (await git.raw(['log', '-1', '--format=%s'])).trim();
       if (!lastMessage.startsWith('[dash-build]')) {
         throw new Error(
           `Last commit is not a dash-build commit. Message: "${lastMessage}"`,
         );
       }
-      execGit('git reset --hard HEAD~1', repoPath);
+      await git.reset(['--hard', 'HEAD~1']);
     } catch (err: unknown) {
       if (err instanceof Error && err.message.includes('not a dash-build commit')) {
         throw err;
@@ -76,7 +86,7 @@ export function createGitOperations(): GitOperations {
 
   async function getCurrentBranch(repoPath: string): Promise<string> {
     try {
-      return execGit('git rev-parse --abbrev-ref HEAD', repoPath);
+      return await gitFor(repoPath).revparse(['--abbrev-ref', 'HEAD']);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       throw new Error(`Failed to get current branch: ${errorMessage}`);
@@ -85,7 +95,7 @@ export function createGitOperations(): GitOperations {
 
   async function createBranch(name: string, repoPath: string): Promise<void> {
     try {
-      execGit(`git checkout -b '${name.replace(/'/g, "'\\''")}'`, repoPath);
+      await gitFor(repoPath).checkoutLocalBranch(name);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       throw new Error(`Failed to create branch "${name}": ${errorMessage}`);
@@ -93,10 +103,11 @@ export function createGitOperations(): GitOperations {
   }
 
   async function resetWorkingTree(repoPath: string): Promise<void> {
+    const git = gitFor(repoPath);
     try {
-      execGit('git checkout -- .', repoPath);
+      await git.checkout(['.']);
       // Also remove untracked files that may have been created by the diff
-      execGit('git clean -fd', repoPath);
+      await git.clean(['f', 'd']);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       throw new Error(`Failed to reset working tree: ${errorMessage}`);
@@ -105,8 +116,7 @@ export function createGitOperations(): GitOperations {
 
   async function checkoutFile(filePath: string, repoPath: string): Promise<void> {
     try {
-      const escaped = filePath.replace(/'/g, "'\\''");
-      execGit(`git checkout -- '${escaped}'`, repoPath);
+      await gitFor(repoPath).checkout(['--', filePath]);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       throw new Error(`Failed to checkout file "${filePath}": ${errorMessage}`);
@@ -121,26 +131,36 @@ export function createGitOperations(): GitOperations {
     const worktreePath = path.join(tmpdir(), `dash-worktree-${taskId}`);
     const branchName = `dash-wt-${taskId}`;
     try {
-      execGit(`git worktree add '${worktreePath}' -b '${branchName}'`, repoPath);
+      await gitFor(repoPath).raw(['worktree', 'add', worktreePath, '-b', branchName]);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       throw new Error(`Failed to create worktree: ${errorMessage}`);
+    }
+    // Symlink node_modules from the original repo so tests can resolve npm packages.
+    // Worktrees only contain tracked files; node_modules is gitignored.
+    const srcModules = path.join(repoPath, 'node_modules');
+    const dstModules = path.join(worktreePath, 'node_modules');
+    if (fs.existsSync(srcModules) && !fs.existsSync(dstModules)) {
+      try {
+        fs.symlinkSync(srcModules, dstModules);
+      } catch { /* best-effort — tests will still fail but with a clear error */ }
     }
     return worktreePath;
   }
 
   async function removeWorktree(worktreePath: string, repoPath: string, opts?: { keepBranch?: boolean }): Promise<void> {
+    const git = gitFor(repoPath);
     try {
-      execGit(`git worktree remove '${worktreePath}' --force`, repoPath);
+      await git.raw(['worktree', 'remove', worktreePath, '--force']);
     } catch {
       // Worktree may already be deleted from disk — clean up manually
       try { fs.rmSync(worktreePath, { recursive: true, force: true }); } catch { /* noop */ }
-      try { execGit('git worktree prune', repoPath); } catch { /* noop */ }
+      try { await git.raw(['worktree', 'prune']); } catch { /* noop */ }
     }
     if (!opts?.keepBranch) {
       // Clean up the branch ref (best-effort, may already be deleted or merged)
       const branchName = 'dash-wt-' + path.basename(worktreePath).replace('dash-worktree-', '');
-      try { execGit(`git branch -D '${branchName}'`, repoPath); } catch { /* noop */ }
+      try { await git.deleteLocalBranch(branchName, true); } catch { /* noop */ }
     }
   }
 
@@ -148,18 +168,18 @@ export function createGitOperations(): GitOperations {
     branchName: string,
     repoPath: string,
   ): Promise<{ success: boolean; error?: string }> {
-    const escapedBranch = branchName.replace(/'/g, "'\\''");
-    const mergeCmd = `git merge '${escapedBranch}' -m '[dash-build] Merge ${escapedBranch}'`;
+    const git = gitFor(repoPath);
+    const mergeMessage = `[dash-build] Merge ${branchName}`;
 
-    function doMerge(): { success: boolean; error?: string } {
-      execGit(mergeCmd, repoPath);
+    async function doMerge(): Promise<{ success: boolean; error?: string }> {
+      await git.merge([branchName, '-m', mergeMessage]);
       // Branch cleanup is handled by removeWorktree() — attempting deletion here
       // always fails with "cannot delete branch used by worktree" noise.
       return { success: true };
     }
 
     try {
-      return doMerge();
+      return await doMerge();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
 
@@ -178,16 +198,16 @@ export function createGitOperations(): GitOperations {
           try { fs.rmSync(resolved, { recursive: true, force: true }); } catch { /* noop */ }
         }
         try {
-          return doMerge();
+          return await doMerge();
         } catch (retryErr: unknown) {
           const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
-          try { execGit('git merge --abort', repoPath); } catch { /* noop */ }
+          try { await git.merge(['--abort']); } catch { /* noop */ }
           return { success: false, error: `Merge conflict: ${retryMsg}. Branch '${branchName}' preserved for manual resolution.` };
         }
       }
 
       // Abort the failed merge to leave a clean state
-      try { execGit('git merge --abort', repoPath); } catch { /* noop */ }
+      try { await git.merge(['--abort']); } catch { /* noop */ }
       return { success: false, error: `Merge conflict: ${message}. Branch '${branchName}' preserved for manual resolution.` };
     }
   }

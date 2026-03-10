@@ -1,4 +1,4 @@
-export type Phase = 'bootstrap' | 'research' | 'test_plan' | 'impl_plan' | 'test_gen' | 'decompose' | 'diff_gen' | 'correction' | 'complete' | 'answer';
+export type Phase = 'bootstrap' | 'research' | 'test_plan' | 'impl_plan' | 'test_gen' | 'diff_gen' | 'correction' | 'complete' | 'answer';
 
 export type TaskStatus = 'idle' | 'running' | 'paused' | 'awaiting_approval' | 'complete' | 'failed';
 
@@ -28,8 +28,6 @@ export interface TaskConfig {
   queryMode?: boolean;
   /** When true, block modifications to pre-existing test files (opt-in). */
   protectTestFiles?: boolean;
-  /** When true, skip the decompose phase — used for child tasks to prevent recursive decomposition. */
-  skipDecompose?: boolean;
   /** Override the maximum number of correction iterations for this task. */
   maxCorrectionIterations?: number;
   /** When set, restrict diff generation to only these file paths (--files flag). */
@@ -68,25 +66,13 @@ export interface FileEditOutcome {
   failureReason?: string;
 }
 
-/** A subtask produced by the decompose phase. */
-export interface Subtask {
-  /** Short description of the subtask. */
-  description: string;
-  /** Files that this subtask will modify. */
-  affectedFiles: string[];
-  /** Indices of other subtasks that must complete first. */
-  dependencies: number[];
-  /** What "done" looks like for this subtask. */
-  acceptanceCriteria: string;
-  /** Execution status. */
-  status: 'pending' | 'running' | 'complete' | 'failed';
-}
-
 export interface Task {
   id: string;
   accountId?: string;
   status: TaskStatus;
   currentPhase: Phase;
+  /** Phases the task has actually entered (append-only). Used to distinguish skipped from completed in the UI. */
+  phasesRun?: Phase[];
   config: TaskConfig;
   sections: Record<SectionName, Section>;
   paused: boolean;
@@ -96,6 +82,8 @@ export interface Task {
   lastDiff?: string;
   lastTestOutput?: string;
   lastEditFailures?: string;
+  /** Structural validation error from the last diff attempt (brace imbalance, missing declarations, etc.). */
+  lastStructuralErrors?: string;
   /** Final file contents produced by the diff pipeline (keyed by relative path). */
   lastModifiedContents?: Record<string, string>;
   /** Per-file outcomes from the last diff attempt (multi-file only). */
@@ -107,10 +95,12 @@ export interface Task {
   generatedTestFiles?: string[];
   resolvedTestCommand?: string;
   testCommandSource?: 'user' | 'llm_resolved' | 'llm_retry' | 'syntax_check_fallback';
-  /** Subtasks produced by the decompose phase — read by CLI/driver for external orchestration. */
-  subtasks?: Subtask[];
   /** Diagnostic summary produced when a task fails (S8.0). */
   failureSummary?: string;
+  /** True when tests passed before a downstream failure (e.g. commit failed). */
+  testsPassed?: boolean;
+  /** Path to saved recovery patch when commit fails after tests pass. */
+  recoveryPatchPath?: string;
   /** Short one-sentence summary of the task for display in task lists. */
   summary?: string;
   /** True when pre-flight assessment classified the task description as an implementation plan.
@@ -132,7 +122,7 @@ export const SECTION_NAMES: SectionName[] = [
 ];
 
 export const PHASE_ORDER: Phase[] = [
-  'bootstrap', 'research', 'test_plan', 'impl_plan', 'test_gen', 'decompose', 'diff_gen', 'correction', 'complete'
+  'bootstrap', 'research', 'test_plan', 'impl_plan', 'test_gen', 'diff_gen', 'correction', 'complete'
 ];
 
 /**
@@ -140,7 +130,7 @@ export const PHASE_ORDER: Phase[] = [
  * Used for progress tracking (e.g. MCP progress notifications).
  */
 export const PHASE_DISPLAY_ORDER: Phase[] = [
-  'bootstrap', 'research', 'test_plan', 'impl_plan', 'test_gen', 'decompose', 'diff_gen', 'correction', 'complete',
+  'bootstrap', 'research', 'test_plan', 'impl_plan', 'test_gen', 'diff_gen', 'correction', 'complete',
 ];
 
 /**
@@ -156,7 +146,6 @@ const PHASE_TRANSITIONS: Partial<Record<Phase, Phase>> = {
   test_plan: 'impl_plan',
   impl_plan: 'diff_gen',
   test_gen: 'diff_gen',
-  decompose: 'diff_gen',
   correction: 'diff_gen',
   diff_gen: 'complete',
   answer: 'complete',

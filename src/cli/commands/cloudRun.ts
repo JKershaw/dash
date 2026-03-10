@@ -17,7 +17,6 @@ export interface BaseCloudRunConfig {
   queryMode?: boolean;
   generateTests?: boolean;
   protectTestFiles?: boolean;
-  skipDecompose?: boolean;
   maxCorrectionIterations?: number;
   /** The original repo path when worktree isolation is active (repoPath is the worktree). */
   originalRepoPath?: string;

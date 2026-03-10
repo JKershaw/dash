@@ -1,6 +1,6 @@
 {
   "name": "@jkershaw/dash",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "Cloud CLI for Dash Build — run coding tasks against a hosted agent server",
   "type": "module",
   "bin": {
@@ -32,6 +32,7 @@
     "url": "git+https://github.com/JKershaw/dash.git"
   },
   "dependencies": {
+    "simple-git": "^3.32.3",
     "undici": "^7.21.0",
     "uuid": "^10.0.0",
     "ws": "^8.19.0"

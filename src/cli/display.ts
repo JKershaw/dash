@@ -51,6 +51,7 @@ export interface TaskResultSummary {
   correctionCount?: number;
   failureSummary?: string;
   lastDiff?: string;
+  answer?: string;
   totalTokens?: number;
   totalCost?: number;
   callCount?: number;
@@ -84,6 +85,15 @@ export function printTaskResult(summary: TaskResultSummary): void {
       ? ` | $${summary.totalCost.toFixed(6)}`
       : '';
     log(`${bold('Usage:')} ${summary.totalTokens.toLocaleString()} tokens${costStr} (${summary.callCount} calls)`);
+  }
+
+  // Query mode answer
+  if (summary.answer) {
+    console.log('');
+    console.log(bold('Answer:'));
+    console.log(dim('\u2500'.repeat(60)));
+    console.log(summary.answer);
+    console.log(dim('\u2500'.repeat(60)));
   }
 
   // Generated diff
@@ -158,7 +168,10 @@ export function formatEventForDisplay(event: TaskEvent): string | null {
 
     case 'tests_run': {
       const passed = event.payload.passed as boolean;
-      if (passed) {
+      const skipped = event.payload.skipped as boolean | undefined;
+      if (skipped) {
+        return `  ${yellow('\u2298')} ${yellow('Tests skipped')}`;
+      } else if (passed) {
         return `  ${green('\u2713')} ${boldGreen('Tests passed!')}`;
       } else {
         const exitCode = event.payload.exitCode as number | undefined;
@@ -175,11 +188,11 @@ export function formatEventForDisplay(event: TaskEvent): string | null {
           warnOutput += `\n    ${dim(line)}`;
         }
       }
-      if (event.payload.suggestedSubtasks) {
-        const suggestedSubtasks = event.payload.suggestedSubtasks as string[];
-        warnOutput += `\n    ${dim('Suggested subtasks:')}`;
-        for (const st of suggestedSubtasks) {
-          warnOutput += `\n      ${dim(`- ${st}`)}`;
+      if (event.payload.subtasks) {
+        const subtasks = event.payload.subtasks as string[];
+        warnOutput += `\n    ${yellow('Suggested subtasks:')}`;
+        for (let i = 0; i < subtasks.length; i++) {
+          warnOutput += `\n    ${dim(`${i + 1}. ${subtasks[i]}`)}`;
         }
       }
       return warnOutput;
@@ -192,13 +205,6 @@ export function formatEventForDisplay(event: TaskEvent): string | null {
         const guidance = event.payload.guidance as string[];
         for (const line of guidance) {
           errorOutput += `\n    ${dim(line)}`;
-        }
-      }
-      if (event.payload.suggestedSubtasks) {
-        const suggestedSubtasks = event.payload.suggestedSubtasks as string[];
-        errorOutput += `\n    ${dim('Suggested subtasks:')}`;
-        for (const st of suggestedSubtasks) {
-          errorOutput += `\n      ${dim(`- ${st}`)}`;
         }
       }
       return errorOutput;

@@ -21,7 +21,7 @@ export interface SyntaxCheckResult {
 
 export interface GitOperations {
   applyPatch(diffString: string, repoPath: string): Promise<{ success: boolean; error?: string }>;
-  createCommit(message: string, repoPath: string): Promise<void>;
+  createCommit(message: string, repoPath: string): Promise<{ oid: string; url: string } | void>;
   revertLastCommit(repoPath: string): Promise<void>;
   getCurrentBranch(repoPath: string): Promise<string>;
   createBranch(name: string, repoPath: string): Promise<void>;

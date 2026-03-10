@@ -21,7 +21,9 @@ export type EventType =
   | 'status_changed'
   | 'test_command_resolved'
   | 'failure_diagnosed'
-  | 'pr_created';
+  | 'pr_created'
+  | 'commit_created'
+  | 'llm_chunk';
 
 export interface TaskEvent {
   id: string;
